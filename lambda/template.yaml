@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Environment:
+    Type: String
+    Description: Deployment environment (test,production)
+    AllowedValues:
+      - test
+      - production
+    Default: test
+Resources:
+  # ProcessImagesFunction:
+  #   Type: "AWS::Lambda::Function"
+  #   Properties:
+  #     FunctionName: process-images
+  #     Handler: index.handler
+  #     Role: !GetAtt ProcessImagesRole.Arn
+  #     Runtime: nodejs18.x
+  #     Code:
+  #       S3Bucket: !ImportValue !Sub "snappin-${Environment}-lambdas-bucket-arn"
+  #       S3Key: process-images.zip
+
+  MessageHandlerFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: !Sub "snappin-${Environment}-message-handler"
+      Handler: index.handler
+      Role: !GetAtt MessageHandlerRole.Arn
+      Runtime: nodejs18.x
+      Code:
+        S3Bucket: !Sub
+          - "${BucketArn}"
+          - BucketArn: !ImportValue "snappin-${Environment}-lambdas-bucket-arn"
+        S3Key: message-handler.zip
+
+  # ProcessImagesRole:
+  #   Type: "AWS::IAM::Role"
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     Policies:
+  #       - PolicyName: S3AccessPolicy
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - s3:GetObject
+  #                 - s3:PutObject
+  #               Resource: arn:aws:s3:::your-bucket-name/*
+
+  MessageHandlerRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaInvokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: "*"
+        # - PolicyName: SQSSendMessagePolicy
+        #   PolicyDocument:
+        #     Version: "2012-10-17"
+        #     Statement:
+        #       - Effect: Allow
+        #         Action:
+        #           - sqs:SendMessage
+        #         Resource: arn:aws:sqs:${AWS:Region}:your-account-id:your-queue-name

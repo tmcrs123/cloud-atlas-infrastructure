@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  ApiGatewayRestApi:
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      Name: "MyApiGateway"
+      Description: "API Gateway for my application"
+      FailOnWarnings: true
+
+  ApiGatewayResource:
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId:
+        Fn::GetAtt:
+          - ApiGatewayRestApi
+          - RootResourceId
+      PathPart: "myresource"
+      RestApiId:
+        Ref: "ApiGatewayRestApi"
+
+  ApiGatewayMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      AuthorizationType: "NONE"
+      HttpMethod: "GET"
+      ResourceId:
+        Ref: "ApiGatewayResource"
+      RestApiId:
+        Ref: "ApiGatewayRestApi"
+      Integration:
+        IntegrationHttpMethod: "GET"
+        Type: "MOCK"
+
+Outputs:
+  ApiGatewayUrl:
+    Description: "URL for the API Gateway"
+    Value:
+      Fn::Sub: "https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/myresource"

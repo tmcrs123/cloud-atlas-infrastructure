@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Environment:
+    Type: String
+    Description: Deployment environment (test,production)
+    AllowedValues:
+      - test
+      - production
+    Default: test
+Resources:
+  DumpBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "snappin-${Environment}-dump"
+      # NotificationConfiguration:
+      #   TopicConfigurations:
+      #     - Event: "s3:ObjectCreated:*"
+      #       Topic: !Ref SNSTopic
+      #     - Event: "s3:ObjectRemoved:*"
+      #       Topic: !Ref SNSTopic
+      AccessControl: Private
+
+  OptimizedBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "snappin-${Environment}-optimized"
+      # NotificationConfiguration:
+      #   TopicConfigurations:
+      #     - Event: "s3:ObjectCreated:*"
+      #       Topic: !Ref SNSTopic
+      #     - Event: "s3:ObjectRemoved:*"
+      #       Topic: !Ref SNSTopic
+      AccessControl: Private
+
+  LambdasBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "snappin-${Environment}-lambdas"
+      AccessControl: Private
+
+Outputs:
+  DumpBucketArn:
+    Description: "The ARN of the Snappin dump bucket"
+    Value: !GetAtt DumpBucket.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-dump-bucket-arn"
+  OptimizedBucketArn:
+    Description: "The ARN of the Snappin optimized bucket"
+    Value: !GetAtt OptimizedBucket.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-optimized-bucket-arn"
+  LambdasBucketArn:
+    Description: "The ARN of the Snappin Lambda bucket"
+    Value: !GetAtt LambdasBucket.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-lambdas-bucket-arn"

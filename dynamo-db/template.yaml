@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Environment:
+    Type: String
+    Description: Deployment environment (test,production)
+    AllowedValues:
+      - test
+      - production
+    Default: test
+Resources:
+  MapsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "snappin-${Environment}-maps"
+      AttributeDefinitions:
+        - AttributeName: mapId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: mapId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+
+  MarkersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "snappin-${Environment}-markers"
+      AttributeDefinitions:
+        - AttributeName: mapId
+          AttributeType: S
+        - AttributeName: markerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: mapId
+          KeyType: HASH
+        - AttributeName: markerId
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+
+  ImagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "snappin-${Environment}-images"
+      AttributeDefinitions:
+        - AttributeName: mapId
+          AttributeType: S
+        - AttributeName: imageId
+          AttributeType: S
+        - AttributeName: markerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: mapId
+          KeyType: HASH
+        - AttributeName: imageId
+          KeyType: RANGE
+      LocalSecondaryIndexes:
+        - IndexName: !Sub "snappin-${Environment}-images-table-LSI"
+          KeySchema:
+            - AttributeName: mapId
+              KeyType: HASH
+            - AttributeName: markerId
+              KeyType: RANGE
+          Projection:
+            NonKeyAttributes:
+              - "mapId"
+              - "imageId"
+              - "comment"
+            ProjectionType: "INCLUDE"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+
+Outputs:
+  MapsTable:
+    Description: "The snappin maps table"
+    Value: !Ref MapsTable
+  MarkersTable:
+    Description: "The snappin markers table"
+    Value: !Ref MarkersTable
+  ImagesTable:
+    Description: "The snappin images table"
+    Value: !Ref ImagesTable
