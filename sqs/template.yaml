@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Environment:
+    Type: String
+    Description: Deployment environment (test,production)
+    AllowedValues:
+      - test
+      - production
+    Default: test
+Resources:
+  OptimizedImagesQueue:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      QueueName: !Sub "snappin-${Environment}-optimized-images-queue"
+      VisibilityTimeout: 30
+      MessageRetentionPeriod: 345600
+      DelaySeconds: 0
+      MaximumMessageSize: 262144
+      ReceiveMessageWaitTimeSeconds: 0
+Outputs:
+  QueueArn:
+    Description: "The ARN of the SQS queue where messages related to optimized images being stored to S3 are placed"
+    Value: !GetAtt OptimizedImagesQueue.Arn

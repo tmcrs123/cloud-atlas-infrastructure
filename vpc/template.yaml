@@ -34,8 +34,8 @@ Resources:
   VPC:
     Type: AWS::EC2::VPC
     Properties:
-      EnableDnsSupport: false
-      EnableDnsHostnames: false
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
       CidrBlock: !FindInMap ["SubnetConfig", "VPC", "CIDR"]
       Tags:
         - Key: Name
@@ -108,13 +108,18 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
 
 Outputs:
-  StackName:
-    Description: The name generated for this stack with the timestamp
-    Value: !Ref "AWS::StackName"
   VpcId:
     Description: The ID of the VPC that this stack is deployed in
     Value: !Ref "VPC"
-  PublicSubnetIds:
-    Description: Comma separated list of public facing subnets that have
-      a direct internet connection as long as you assign a public IP
-    Value: !Sub "${PublicSubnetOne},${PublicSubnetTwo}"
+    Export:
+      Name: !Sub "snappin-${Environment}-vpc"
+  PublicSubnetOneId:
+    Description: The id of public subnet one
+    Value: !Sub "${PublicSubnetOne}"
+    Export:
+      Name: !Sub "snappin-${Environment}-public-subnet-one-id"
+  PublicSubnetTwoId:
+    Description: The id of public subnet two
+    Value: !Sub "${PublicSubnetTwo}"
+    Export:
+      Name: !Sub "snappin-${Environment}-public-subnet-two-id"

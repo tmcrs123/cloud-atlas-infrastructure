@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Environment:
+    Type: String
+    Description: Deployment environment (test,production)
+    AllowedValues:
+      - test
+      - production
+    Default: test
+Resources:
+  FargateTaskDefinition:
+    Type: "AWS::ECS::TaskDefinition"
+    Properties:
+      Family: !Sub "snappin-${Environment}"
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: "awsvpc"
+      RequiresCompatibilities:
+        - "FARGATE"
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: !Sub "snappin-${Environment}-container"
+          Image: !Join
+            - ""
+            - - !ImportValue snappin-ecr-repository-uri
+              - ":latest"
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3000
+              HostPort: 3000
+              Protocol: "tcp"
+              AppProtocol: http
+  ECSCluster:
+    Type: "AWS::ECS::Cluster"
+    Properties:
+      ClusterName: !Sub "snappin-${Environment}"
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+
+  ECSService:
+    Type: "AWS::ECS::Service"
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LaunchType: "FARGATE"
+      ServiceName: !Sub "snappin-${Environment}-service"
+      TaskDefinition: !Ref FargateTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: "ENABLED"
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+          Subnets:
+            - Fn::ImportValue: !Sub snappin-${Environment}-public-subnet-one-id
+            - Fn::ImportValue: !Sub snappin-${Environment}-public-subnet-two-id
+
+  ECSSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: !Sub "Security group for snappin-${Environment} ECS service"
+      VpcId: !Join
+        - ""
+        - - Fn::ImportValue: !Sub "snappin-${Environment}-vpc"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  TaskExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  TaskRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: !Sub "snappin-${Environment}-ecsTaskRolePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:GetObject"
+                  - "s3:PutObject"
+                Resource: "*"
+
+Outputs:
+  ECSSecurityGroup:
+    Description: The ARN of the security group attached to the snappin ECS service
+    Value: !Ref ECSSecurityGroup
+    Export:
+      Name: !Sub "snappin-${Environment}-ecs-security-group"
+  TaskExecutionRole:
+    Description: The ARN of the task execution role attached to the snappin-api ECS task definition
+    Value: !Ref TaskExecutionRole
+    Export:
+      Name: !Sub "snappin-${Environment}-task-execution-role"
+  TaskRole:
+    Description: The ARN of the task role attached to the snappin-api ECS task definition
+    Value: !Ref TaskRole
+    Export:
+      Name: !Sub "snappin-${Environment}-task-role"

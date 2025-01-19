@@ -8,16 +8,16 @@ Parameters:
       - production
     Default: test
 Resources:
-  # ProcessImagesFunction:
-  #   Type: "AWS::Lambda::Function"
-  #   Properties:
-  #     FunctionName: process-images
-  #     Handler: index.handler
-  #     Role: !GetAtt ProcessImagesRole.Arn
-  #     Runtime: nodejs18.x
-  #     Code:
-  #       S3Bucket: !ImportValue !Sub "snappin-${Environment}-lambdas-bucket-arn"
-  #       S3Key: process-images.zip
+  ProcessImageFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: !Sub "snappin-${Environment}-process-image"
+      Handler: index.handler
+      Role: !GetAtt ProcessImageRole.Arn
+      Runtime: nodejs18.x
+      Code:
+        S3Bucket: !Sub "snappin-${Environment}-lambdas"
+        S3Key: process-image.zip
 
   MessageHandlerFunction:
     Type: "AWS::Lambda::Function"
@@ -27,31 +27,36 @@ Resources:
       Role: !GetAtt MessageHandlerRole.Arn
       Runtime: nodejs18.x
       Code:
-        S3Bucket: !Sub
-          - "${BucketArn}"
-          - BucketArn: !ImportValue "snappin-${Environment}-lambdas-bucket-arn"
+        S3Bucket: !Sub "snappin-${Environment}-lambdas"
         S3Key: message-handler.zip
 
-  # ProcessImagesRole:
-  #   Type: "AWS::IAM::Role"
-  #   Properties:
-  #     AssumeRolePolicyDocument:
-  #       Version: "2012-10-17"
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: lambda.amazonaws.com
-  #           Action: sts:AssumeRole
-  #     Policies:
-  #       - PolicyName: S3AccessPolicy
-  #         PolicyDocument:
-  #           Version: "2012-10-17"
-  #           Statement:
-  #             - Effect: Allow
-  #               Action:
-  #                 - s3:GetObject
-  #                 - s3:PutObject
-  #               Resource: arn:aws:s3:::your-bucket-name/*
+  ProcessImageRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub Snappin-${Environment}-process-image-lambda-ReadFromDump
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::snappin-${Environment}-dump/*"
+        - PolicyName: !Sub Snappin-${Environment}-process-image-lambda-WriteToOptimized
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub "arn:aws:s3:::snappin-${Environment}-optimized/*"
 
   MessageHandlerRole:
     Type: "AWS::IAM::Role"
@@ -80,3 +85,24 @@ Resources:
         #         Action:
         #           - sqs:SendMessage
         #         Resource: arn:aws:sqs:${AWS:Region}:your-account-id:your-queue-name
+Outputs:
+  ProcessImageFnArn:
+    Description: "The ARN of the Snappin process image fn"
+    Value: !GetAtt ProcessImageFunction.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-process-image-lambda-arn"
+  ProcessImageFnRoleArn:
+    Description: "The ARN of the Snappin process image fn role"
+    Value: !GetAtt ProcessImageRole.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-process-image-lambda-role-arn"
+  MessageHandlerFnArn:
+    Description: "The ARN of the Snappin message handler fn"
+    Value: !GetAtt MessageHandlerFunction.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-message-handler-lambda-arn"
+  MessageHandlerFnRoleArn:
+    Description: "The ARN of the Snappin message handler fn role"
+    Value: !GetAtt MessageHandlerFunction.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-message-handler-lambda-role-arn"

@@ -1,4 +1,21 @@
-SNSTopic:
-  Type: "AWS::SNS::Topic"
-  Properties:
-    DisplayName: "SnappinS3Notifications"
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Environment:
+    Type: String
+    Description: Deployment environment (test,production)
+    AllowedValues:
+      - test
+      - production
+    Default: test
+Resources:
+  BucketEventsTopic:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      DisplayName: !Sub "snappin-${Environment}-bucket-events-topic"
+      TopicName: !Sub "snappin-${Environment}-bucket-events-topic"
+Outputs:
+  BucketsEventsTopicArn:
+    Description: "The ARN of the Snappin buckets events topic"
+    Value: !GetAtt BucketEventsTopic.TopicArn
+    Export:
+      Name: !Sub "Snappin-${Environment}-bucket-events-topic-arn"
