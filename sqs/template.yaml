@@ -21,3 +21,10 @@ Outputs:
   QueueArn:
     Description: "The ARN of the SQS queue where messages related to optimized images being stored to S3 are placed"
     Value: !GetAtt OptimizedImagesQueue.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-optimized-images-queue-arn"
+  QueueUrl:
+    Description: "The URL of the SQS queue where messages related to optimized images being stored to S3 are placed"
+    Value: !Ref OptimizedImagesQueue
+    Export:
+      Name: !Sub "snappin-${Environment}-optimized-images-queue-url"

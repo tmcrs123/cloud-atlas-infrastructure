@@ -76,10 +76,16 @@ Resources:
 Outputs:
   MapsTable:
     Description: "The snappin maps table"
-    Value: !Ref MapsTable
+    Value: !GetAtt MapsTable.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-maps-table-arn"
   MarkersTable:
     Description: "The snappin markers table"
-    Value: !Ref MarkersTable
+    Value: !GetAtt MarkersTable.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-markers-table-arn"
   ImagesTable:
     Description: "The snappin images table"
-    Value: !Ref ImagesTable
+    Value: !GetAtt ImagesTable.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-images-table-arn"

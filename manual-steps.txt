@@ -1,0 +1,1 @@
+ - In API Gateway need to set the URL to the ENI of the fargate task

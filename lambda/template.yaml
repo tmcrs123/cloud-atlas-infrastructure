@@ -18,6 +18,9 @@ Resources:
       Code:
         S3Bucket: !Sub "snappin-${Environment}-lambdas"
         S3Key: process-image.zip
+      Tags:
+        - Key: Name
+          Value: !Sub "snappin-${Environment}-process-image"
 
   MessageHandlerFunction:
     Type: "AWS::Lambda::Function"
@@ -29,6 +32,9 @@ Resources:
       Code:
         S3Bucket: !Sub "snappin-${Environment}-lambdas"
         S3Key: message-handler.zip
+      Tags:
+        - Key: Name
+          Value: !Sub "snappin-${Environment}-message-handler"
 
   ProcessImageRole:
     Type: "AWS::IAM::Role"
@@ -40,6 +46,8 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
         - PolicyName: !Sub Snappin-${Environment}-process-image-lambda-ReadFromDump
           PolicyDocument:
@@ -68,6 +76,8 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
         - PolicyName: LambdaInvokePolicy
           PolicyDocument:

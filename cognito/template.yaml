@@ -42,19 +42,38 @@ Resources:
     Properties:
       ClientName: !Sub "snappin-${Environment}-user-pool-client"
       UserPoolId: !Ref CognitoUserPool
+      SupportedIdentityProviders:
+        - COGNITO
       GenerateSecret: false
+      EnableTokenRevocation: true
+      PreventUserExistenceErrors: ENABLED
       ExplicitAuthFlows:
         - ALLOW_REFRESH_TOKEN_AUTH
         - ALLOW_USER_PASSWORD_AUTH
+      AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows:
         - code
       AllowedOAuthScopes:
         - openid
       CallbackURLs:
-        - "https://example.com/callback"
+        - "http://localhost:4200"
       LogoutURLs:
-        - "https://example.com/logout"
+        - "http://localhost:4200"
+
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub snappin-${Environment}
+      UserPoolId: !Ref CognitoUserPool
+
 Outputs:
   UserPoolId:
     Description: The ID of the Cognito User Pool
     Value: !Ref CognitoUserPool
+    Export:
+      Name: !Sub "snappin-${Environment}-cognito-user-pool-id"
+  JsonPublicKeyURI:
+    Description: The ID of the Cognito User Pool
+    Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}/.well-known/jwks.json"
+    Export:
+      Name: !Sub "snappin-${Environment}-well-know-jwts"
