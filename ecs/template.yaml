@@ -172,6 +172,7 @@ Resources:
               - Effect: "Allow"
                 Action:
                   - "sqs:ReceiveMessage"
+                  - "sqs:DeleteMessage"
                 Resource: !Join
                   - ""
                   - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-images-queue-arn"

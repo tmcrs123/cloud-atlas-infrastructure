@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   Environment:
     Type: String
-    Description: Deployment environment (test,production)
+    Description: Deployment environment (test,prod)
     AllowedValues:
       - test
       - production
@@ -13,9 +13,40 @@ Resources:
     Properties:
       DisplayName: !Sub "snappin-${Environment}-bucket-events-topic"
       TopicName: !Sub "snappin-${Environment}-bucket-events-topic"
+
+  BucketEventsTopicSubscription:
+    Type: "AWS::SNS::Subscription"
+    Properties:
+      TopicArn: !Ref BucketEventsTopic
+      Protocol: lambda
+      Endpoint: !Join
+        - ""
+        - - Fn::ImportValue: !Sub "snappin-${Environment}-message-handler-lambda-arn"
+
+  BucketEventsTopicPolicy:
+    Type: "AWS::SNS::TopicPolicy"
+    Properties:
+      Topics:
+        - !Ref BucketEventsTopic
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "s3.amazonaws.com"
+            Action: "SNS:Publish"
+            Resource: !Ref BucketEventsTopic
+            Condition:
+              StringEquals:
+                Aws:SourceAccount: !Sub "${AWS::AccountId}"
 Outputs:
+  BucketsEventsTopicName:
+    Description: "The name of the Snappin buckets events topic"
+    Value: !GetAtt BucketEventsTopic.TopicName
+    Export:
+      Name: !Sub "snappin-${Environment}-bucket-events-name"
   BucketsEventsTopicArn:
     Description: "The ARN of the Snappin buckets events topic"
     Value: !GetAtt BucketEventsTopic.TopicArn
     Export:
-      Name: !Sub "Snappin-${Environment}-bucket-events-topic-arn"
+      Name: !Sub "snappin-${Environment}-bucket-events-topic-arn"

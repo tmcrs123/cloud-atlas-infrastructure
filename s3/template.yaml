@@ -12,24 +12,32 @@ Resources:
     Type: "AWS::S3::Bucket"
     Properties:
       BucketName: !Sub "snappin-${Environment}-dump"
-      # NotificationConfiguration:
-      #   TopicConfigurations:
-      #     - Event: "s3:ObjectCreated:*"
-      #       Topic: !Ref SNSTopic
-      #     - Event: "s3:ObjectRemoved:*"
-      #       Topic: !Ref SNSTopic
+      NotificationConfiguration:
+        TopicConfigurations:
+          - Topic: !Join
+              - ""
+              - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
+            Event: "s3:ObjectCreated:*"
+          - Topic: !Join
+              - ""
+              - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
+            Event: "s3:ObjectRemoved:*"
       AccessControl: Private
 
   OptimizedBucket:
     Type: "AWS::S3::Bucket"
     Properties:
       BucketName: !Sub "snappin-${Environment}-optimized"
-      # NotificationConfiguration:
-      #   TopicConfigurations:
-      #     - Event: "s3:ObjectCreated:*"
-      #       Topic: !Ref SNSTopic
-      #     - Event: "s3:ObjectRemoved:*"
-      #       Topic: !Ref SNSTopic
+      NotificationConfiguration:
+        TopicConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Topic: !Join
+              - ""
+              - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
+          - Event: "s3:ObjectRemoved:*"
+            Topic: !Join
+              - ""
+              - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
       AccessControl: Private
 
   LambdasBucket:
@@ -37,6 +45,8 @@ Resources:
     Properties:
       BucketName: !Sub "snappin-${Environment}-lambdas"
       AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
 
 Outputs:
   DumpBucketArn:

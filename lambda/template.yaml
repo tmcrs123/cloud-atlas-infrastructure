@@ -18,6 +18,14 @@ Resources:
       Code:
         S3Bucket: !Sub "snappin-${Environment}-lambdas"
         S3Key: process-image.zip
+        S3ObjectVersion: x6pB6AJCy3tJpo2bTrK6BGoT9YOeV.1B
+      Environment:
+        Variables:
+          REGION: !Sub ${AWS::Region}
+          NODE_ENV: !Sub ${Environment}
+          LOCAL_ENDPOINT: placeholder
+          DUMP_BUCKET_NAME: !Sub "snappin-${Environment}-dump"
+          OPTIMIZED_BUCKET_NAME: !Sub "snappin-${Environment}-optimized"
       Tags:
         - Key: Name
           Value: !Sub "snappin-${Environment}-process-image"
@@ -32,9 +40,32 @@ Resources:
       Code:
         S3Bucket: !Sub "snappin-${Environment}-lambdas"
         S3Key: message-handler.zip
+        S3ObjectVersion: XIvDyqXlA1eMU80ljyAttlRRwAXGT76d
+      Environment:
+        Variables:
+          REGION: !Sub ${AWS::Region}
+          NODE_ENV: !Sub ${Environment}
+          LOCAL_ENDPOINT: placeholder
+          DUMP_BUCKET_NAME: !Sub "snappin-${Environment}-dump"
+          OPTIMIZED_BUCKET_NAME: !Sub "snappin-${Environment}-optimized"
+          PROCESS_IMAGE_FN_NAME: !Sub "snappin-${Environment}-process-image"
+          QUEUE_URL: !Join
+            - ""
+            - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-images-queue-url"
+
       Tags:
         - Key: Name
           Value: !Sub "snappin-${Environment}-message-handler"
+
+  MessageHandlerInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MessageHandlerFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Join
+        - ""
+        - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
 
   ProcessImageRole:
     Type: "AWS::IAM::Role"
@@ -56,6 +87,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
                 Resource: !Sub "arn:aws:s3:::snappin-${Environment}-dump/*"
         - PolicyName: !Sub Snappin-${Environment}-process-image-lambda-WriteToOptimized
           PolicyDocument:
@@ -87,14 +120,16 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: "*"
-        # - PolicyName: SQSSendMessagePolicy
-        #   PolicyDocument:
-        #     Version: "2012-10-17"
-        #     Statement:
-        #       - Effect: Allow
-        #         Action:
-        #           - sqs:SendMessage
-        #         Resource: arn:aws:sqs:${AWS:Region}:your-account-id:your-queue-name
+        - PolicyName: SQSSendMessagePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !Join
+                  - ""
+                  - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-images-queue-arn"
 Outputs:
   ProcessImageFnArn:
     Description: "The ARN of the Snappin process image fn"
