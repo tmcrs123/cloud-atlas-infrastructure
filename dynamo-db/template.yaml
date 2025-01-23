@@ -89,3 +89,11 @@ Outputs:
     Value: !GetAtt ImagesTable.Arn
     Export:
       Name: !Sub "snappin-${Environment}-images-table-arn"
+  ImagesTableLSI:
+    Description: "The snappin images table LSI"
+    Value: !Join
+      - ""
+      - - !GetAtt ImagesTable.Arn
+        - !Sub "/index/snappin-${Environment}-images-table-LSI"
+    Export:
+      Name: !Sub "snappin-${Environment}-images-table-LSI"

@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Environment:
+    Type: String
+    Description: Deployment environment (test,production)
+    AllowedValues:
+      - test
+      - production
+    Default: test
+Resources:
+  OptimizedPhotosCloudfrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !Sub "snappin-${Environment}-optimized.s3.us-east-1.amazonaws.com"
+            Id: !Sub "snappin-${Environment}-optimized"
+            OriginAccessControlId: !GetAtt CloudfrontDistributionOriginAccessControl.Id
+            S3OriginConfig: {}
+        Enabled: "true"
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          TargetOriginId: !Sub "snappin-${Environment}-optimized"
+          TrustedKeyGroups:
+            - !Ref OptimizedPhotosCloudfrontKeyGroup
+          # FunctionAssociations:
+          #   -   EventType: viewer-request
+          #       FunctionARN: !GetAtt snappinOptimizedPhotosPreventRefererFunction.FunctionARN
+
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # CachingOptimized
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf # CORS-S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+
+  OptimizedPhotosCloudfrontKeyGroup:
+    Type: AWS::CloudFront::KeyGroup
+    Properties:
+      KeyGroupConfig:
+        Items:
+          - !Ref OptimizedPhotosCloudfrontPublicKey
+        Name: !Sub snappin-${Environment}-optimized-photos-cloudfront-keygroup
+
+  OptimizedPhotosCloudfrontPublicKey:
+    Type: AWS::CloudFront::PublicKey
+    Properties:
+      PublicKeyConfig:
+        CallerReference: !Sub T1LTt07XlT${Environment} ##just needs to be a random string, this has no meaning
+        EncodedKey: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzovGf4P2QHO/ToAZfDWd
+          SnDhspIsmyFssBHa2vvqyH4Zx/HturUq0jcao6V9met0YGFS4kIwZmYm4wTbZXXE
+          jYAuC+rS2dFYNfG3AlmuynlPtMIPsgIaJlsbF078GajW1p6VAtHMS1HyQCRBT4UJ
+          nQOZ7ygiuFQM0NOzCYX1V4jO57cW3PUWt1Vd0bmJIT4V77ODD9QURm2FN5IrFUU9
+          tkjsAMAthgeKFQsDZkAPSHjwlIOkLxuebHVR7Cf0yd1tZuTfDzp0Hmq9HZBzHbBU
+          NXXGPkXSniIy8Ir36D0rMvrPDXouVU4XGQKlyqoczblm4OzUpM4ZO+WHZzHeS1cm
+          XQIDAQAB
+          -----END PUBLIC KEY-----
+        Name: !Sub snappin-${Environment}-optimized-photos-public-key
+
+  CloudfrontDistributionOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub snappin-${Environment}-origin-access-control
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+Outputs:
+  OptimizedPhotosCloudfrontDistribution:
+    Description: "The snappin optimized photos cloudfront distribution id"
+    Value: !Ref OptimizedPhotosCloudfrontDistribution
+    Export:
+      Name: !Sub "snappin-${Environment}-optimized-photos-cloudfront-distribution-id"
+
+  OptimizedPhotosCloudfrontDistributionDomainName:
+    Description: "The snappin optimized photos distribution domain name"
+    Value: !GetAtt OptimizedPhotosCloudfrontDistribution.DomainName
+    Export:
+      Name: !Sub "snappin-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
+
+  OptimizedPhotosCloudfrontPublicKey:
+    Description: "The public key for the optimized photos distribution"
+    Value: !GetAtt OptimizedPhotosCloudfrontPublicKey.Id
+    Export:
+      Name: !Sub "snappin-${Environment}-optimized-photos-cloudfront-public-key"
+
+  OptimizedPhotosCloudfrontKeyGroup:
+    Description: "The key group id for the optimized photos distribution"
+    Value: !GetAtt OptimizedPhotosCloudfrontKeyGroup.Id
+    Export:
+      Name: !Sub "snappin-${Environment}-optimized-photos-keygroup-id"

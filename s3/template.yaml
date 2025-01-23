@@ -12,6 +12,7 @@ Resources:
     Type: "AWS::S3::Bucket"
     Properties:
       BucketName: !Sub "snappin-${Environment}-dump"
+      AccessControl: Private
       NotificationConfiguration:
         TopicConfigurations:
           - Topic: !Join
@@ -22,7 +23,15 @@ Resources:
               - ""
               - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
             Event: "s3:ObjectRemoved:*"
-      AccessControl: Private
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - POST
+            AllowedOrigins:
+              - "*"
+            MaxAge: 3600
 
   OptimizedBucket:
     Type: "AWS::S3::Bucket"
@@ -31,10 +40,6 @@ Resources:
       NotificationConfiguration:
         TopicConfigurations:
           - Event: "s3:ObjectCreated:*"
-            Topic: !Join
-              - ""
-              - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
-          - Event: "s3:ObjectRemoved:*"
             Topic: !Join
               - ""
               - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"

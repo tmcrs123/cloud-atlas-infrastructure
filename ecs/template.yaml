@@ -67,6 +67,8 @@ Resources:
               Value: !Sub "snappin-${Environment}-maps"
             - Name: IMAGES_TABLE_NAME
               Value: !Sub "snappin-${Environment}-images"
+            - Name: IMAGES_TABLE_NAME_LSI
+              Value: !Sub "snappin-${Environment}-images-table-LSI"
             - Name: MARKERS_TABLE_NAME
               Value: !Sub "snappin-${Environment}-markers"
             - Name: REGION
@@ -75,8 +77,10 @@ Resources:
               Value: !Join
                 - ""
                 - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-images-queue-url"
-            - Name: TOPIC_URL
-              Value: http://sns.us-east-1.localstack:4566/000000000000/snappin-topic
+            - Name: TOPIC_ARN
+              Value: !Join
+                - ""
+                - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
             - Name: QUEUE_MAX_NUM_MESSAGES
               Value: 10
             - Name: QUEUE_WAIT_TIME_SECONDS
@@ -85,10 +89,20 @@ Resources:
               Value: 3600
             - Name: S3_DUMP_BUCKET_NAME
               Value: !Sub "snappin-${Environment}-dump"
-            - Name: S3_OPTMIZED_BUCKET_NAME
+            - Name: S3_OPTIMIZED_BUCKET_NAME
               Value: !Sub "snappin-${Environment}-optimized"
             - Name: S3_PRESIGNED_URL_EXPIRATION_IN_SECONDS
               Value: 300
+            - Name: QUEUE_ENABLED
+              Value: true
+            - Name: TOPIC_ENABLED
+              Value: true
+            - Name: OPTIMIZED_PHOTOS_DISTRIBUTION_URL
+              Value: !Sub "snappin-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
+            - Name: OPTIMIZED_PHOTOS_PRIVATE_KEY_NAME
+              Value: !Sub "snappin-${Environment}-cloudfront-private-key"
+            - Name: OPTIMIZED_PHOTOS_KEYPAIR_ID
+              Value: !Sub "snappin-${Environment}-optimized-photos-cloudfront-public-key"
   ECSCluster:
     Type: "AWS::ECS::Cluster"
     Properties:
@@ -178,6 +192,12 @@ Resources:
                   - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-images-queue-arn"
               - Effect: "Allow"
                 Action:
+                  - "sns:Publish"
+                Resource: !Join
+                  - ""
+                  - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
+              - Effect: "Allow"
+                Action:
                   - "dynamodb:PutItem"
                   - "dynamodb:GetItem"
                   - "dynamodb:UpdateItem"
@@ -195,6 +215,9 @@ Resources:
                   - !Join
                     - ""
                     - - Fn::ImportValue: !Sub "snappin-${Environment}-markers-table-arn"
+                  - !Join
+                    - ""
+                    - - Fn::ImportValue: !Sub "snappin-${Environment}-images-table-LSI"
 
 Outputs:
   ECSSecurityGroup:

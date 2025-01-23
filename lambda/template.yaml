@@ -18,7 +18,7 @@ Resources:
       Code:
         S3Bucket: !Sub "snappin-${Environment}-lambdas"
         S3Key: process-image.zip
-        S3ObjectVersion: x6pB6AJCy3tJpo2bTrK6BGoT9YOeV.1B
+        S3ObjectVersion: hmspmIYC.mJIz4rVkSCm1K42HO.m_Az8
       Environment:
         Variables:
           REGION: !Sub ${AWS::Region}
@@ -40,7 +40,7 @@ Resources:
       Code:
         S3Bucket: !Sub "snappin-${Environment}-lambdas"
         S3Key: message-handler.zip
-        S3ObjectVersion: XIvDyqXlA1eMU80ljyAttlRRwAXGT76d
+        S3ObjectVersion: XjLCwGDnUBzIo2Bpbt8e3fsg646_zxsU
       Environment:
         Variables:
           REGION: !Sub ${AWS::Region}
@@ -119,7 +119,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - lambda:InvokeFunction
-                Resource: "*"
+                Resource: !GetAtt ProcessImageFunction.Arn
         - PolicyName: SQSSendMessagePolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -130,6 +130,15 @@ Resources:
                 Resource: !Join
                   - ""
                   - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-images-queue-arn"
+        - PolicyName: removeFromOptimizedBucketRole
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::snappin-${Environment}-optimized/*"
+
 Outputs:
   ProcessImageFnArn:
     Description: "The ARN of the Snappin process image fn"
