@@ -73,6 +73,36 @@ Resources:
         ReadCapacityUnits: 2
         WriteCapacityUnits: 2
 
+  OwnersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "snappin-${Environment}-owners"
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: mapId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: mapId
+          KeyType: RANGE
+      LocalSecondaryIndexes:
+        - IndexName: !Sub "snappin-${Environment}-owners-table-LSI"
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: mapId
+              KeyType: RANGE
+          Projection:
+            NonKeyAttributes:
+              - "mapId"
+              - "userId"
+            ProjectionType: "INCLUDE"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+
 Outputs:
   MapsTable:
     Description: "The snappin maps table"
@@ -89,6 +119,11 @@ Outputs:
     Value: !GetAtt ImagesTable.Arn
     Export:
       Name: !Sub "snappin-${Environment}-images-table-arn"
+  OwnersTable:
+    Description: "The snappin owners table"
+    Value: !GetAtt OwnersTable.Arn
+    Export:
+      Name: !Sub "snappin-${Environment}-owners-table-arn"
   ImagesTableLSI:
     Description: "The snappin images table LSI"
     Value: !Join
@@ -97,3 +132,11 @@ Outputs:
         - !Sub "/index/snappin-${Environment}-images-table-LSI"
     Export:
       Name: !Sub "snappin-${Environment}-images-table-LSI"
+  OwnersTableLSI:
+    Description: "The snappin owners table LSI"
+    Value: !Join
+      - ""
+      - - !GetAtt OwnersTable.Arn
+        - !Sub "/index/snappin-${Environment}-owners-table-LSI"
+    Export:
+      Name: !Sub "snappin-${Environment}-owners-table-LSI"

@@ -71,6 +71,10 @@ Resources:
               Value: !Sub "snappin-${Environment}-images-table-LSI"
             - Name: MARKERS_TABLE_NAME
               Value: !Sub "snappin-${Environment}-markers"
+            - Name: OWNERS_TABLE_NAME
+              Value: !Sub "snappin-${Environment}-owners"
+            - Name: OWNERS_TABLE_NAME_LSI
+              Value: !Sub "snappin-${Environment}-owners-table-LSI"
             - Name: REGION
               Value: us-east-1
             - Name: QUEUE_URL
@@ -98,11 +102,15 @@ Resources:
             - Name: TOPIC_ENABLED
               Value: true
             - Name: OPTIMIZED_PHOTOS_DISTRIBUTION_URL
-              Value: !Sub "snappin-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
+              Value: !Join
+                - ""
+                - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
             - Name: OPTIMIZED_PHOTOS_PRIVATE_KEY_NAME
               Value: !Sub "snappin-${Environment}-cloudfront-private-key"
             - Name: OPTIMIZED_PHOTOS_KEYPAIR_ID
-              Value: !Sub "snappin-${Environment}-optimized-photos-cloudfront-public-key"
+              Value: !Join
+                - ""
+                - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-photos-cloudfront-public-key-id"
   ECSCluster:
     Type: "AWS::ECS::Cluster"
     Properties:
@@ -218,7 +226,19 @@ Resources:
                   - !Join
                     - ""
                     - - Fn::ImportValue: !Sub "snappin-${Environment}-images-table-LSI"
-
+                  - !Join
+                    - ""
+                    - - Fn::ImportValue: !Sub "snappin-${Environment}-owners-table-LSI"
+                  - !Join
+                    - ""
+                    - - Fn::ImportValue: !Sub "snappin-${Environment}-owners-table-arn"
+              - Effect: "Allow"
+                Action:
+                  - secretsmanager:GetSecretValue"
+                Resource:
+                  - !Join
+                    - ""
+                    - - Fn::ImportValue: !Sub "snappin-${Environment}-cloudfront-private-key-arn"
 Outputs:
   ECSSecurityGroup:
     Description: The ARN of the security group attached to the snappin ECS service

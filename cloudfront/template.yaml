@@ -81,14 +81,14 @@ Outputs:
     Export:
       Name: !Sub "snappin-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
 
-  OptimizedPhotosCloudfrontPublicKey:
+  OptimizedPhotosCloudfrontPublicKeyId:
     Description: "The public key for the optimized photos distribution"
     Value: !GetAtt OptimizedPhotosCloudfrontPublicKey.Id
     Export:
-      Name: !Sub "snappin-${Environment}-optimized-photos-cloudfront-public-key"
+      Name: !Sub "snappin-${Environment}-optimized-photos-cloudfront-public-key-id"
 
-  OptimizedPhotosCloudfrontKeyGroup:
-    Description: "The key group id for the optimized photos distribution"
+  OptimizedPhotosCloudfrontKeypairId:
+    Description: "The keypair id for the optimized photos distribution"
     Value: !GetAtt OptimizedPhotosCloudfrontKeyGroup.Id
     Export:
-      Name: !Sub "snappin-${Environment}-optimized-photos-keygroup-id"
+      Name: !Sub "snappin-${Environment}-optimized-photos-keypair-id"
