@@ -8,135 +8,135 @@ Parameters:
       - production
     Default: test
 Resources:
-  MapsTable:
+  AtlasTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "snappin-${Environment}-maps"
+      TableName: !Sub "cloud-atlas-${Environment}-atlas"
       AttributeDefinitions:
-        - AttributeName: mapId
+        - AttributeName: atlasId
           AttributeType: S
       KeySchema:
-        - AttributeName: mapId
+        - AttributeName: atlasId
           KeyType: HASH
       ProvisionedThroughput:
-        ReadCapacityUnits: 2
-        WriteCapacityUnits: 2
+        Readcloud-atlaspacityUnits: 2
+        Writecloud-atlaspacityUnits: 2
 
   MarkersTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "snappin-${Environment}-markers"
+      TableName: !Sub "cloud-atlas-${Environment}-markers"
       AttributeDefinitions:
-        - AttributeName: mapId
+        - AttributeName: atlasId
           AttributeType: S
         - AttributeName: markerId
           AttributeType: S
       KeySchema:
-        - AttributeName: mapId
+        - AttributeName: atlasId
           KeyType: HASH
         - AttributeName: markerId
           KeyType: RANGE
       ProvisionedThroughput:
-        ReadCapacityUnits: 2
-        WriteCapacityUnits: 2
+        Readcloud-atlaspacityUnits: 2
+        Writecloud-atlaspacityUnits: 2
 
   ImagesTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "snappin-${Environment}-images"
+      TableName: !Sub "cloud-atlas-${Environment}-images"
       AttributeDefinitions:
-        - AttributeName: mapId
+        - AttributeName: atlasId
           AttributeType: S
         - AttributeName: imageId
           AttributeType: S
         - AttributeName: markerId
           AttributeType: S
       KeySchema:
-        - AttributeName: mapId
+        - AttributeName: atlasId
           KeyType: HASH
         - AttributeName: imageId
           KeyType: RANGE
-      LocalSecondaryIndexes:
-        - IndexName: !Sub "snappin-${Environment}-images-table-LSI"
+      Locloud-atlaslSecondaryIndexes:
+        - IndexName: !Sub "cloud-atlas-${Environment}-images-table-LSI"
           KeySchema:
-            - AttributeName: mapId
+            - AttributeName: atlasId
               KeyType: HASH
             - AttributeName: markerId
               KeyType: RANGE
           Projection:
             NonKeyAttributes:
-              - "mapId"
+              - "atlasId"
               - "imageId"
               - "comment"
             ProjectionType: "INCLUDE"
       ProvisionedThroughput:
-        ReadCapacityUnits: 2
-        WriteCapacityUnits: 2
+        Readcloud-atlaspacityUnits: 2
+        Writecloud-atlaspacityUnits: 2
 
   OwnersTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "snappin-${Environment}-owners"
+      TableName: !Sub "cloud-atlas-${Environment}-owners"
       AttributeDefinitions:
         - AttributeName: userId
           AttributeType: S
-        - AttributeName: mapId
+        - AttributeName: atlasId
           AttributeType: S
       KeySchema:
         - AttributeName: userId
           KeyType: HASH
-        - AttributeName: mapId
+        - AttributeName: atlasId
           KeyType: RANGE
-      LocalSecondaryIndexes:
-        - IndexName: !Sub "snappin-${Environment}-owners-table-LSI"
+      Locloud-atlaslSecondaryIndexes:
+        - IndexName: !Sub "cloud-atlas-${Environment}-owners-table-LSI"
           KeySchema:
             - AttributeName: userId
               KeyType: HASH
-            - AttributeName: mapId
+            - AttributeName: atlasId
               KeyType: RANGE
           Projection:
             NonKeyAttributes:
-              - "mapId"
+              - "atlasId"
               - "userId"
             ProjectionType: "INCLUDE"
       ProvisionedThroughput:
-        ReadCapacityUnits: 2
-        WriteCapacityUnits: 2
+        Readcloud-atlaspacityUnits: 2
+        Writecloud-atlaspacityUnits: 2
 
 Outputs:
-  MapsTable:
-    Description: "The snappin maps table"
-    Value: !GetAtt MapsTable.Arn
+  AtlasTable:
+    Description: "The cloud atlas table"
+    Value: !GetAtt AtlasTable.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-maps-table-arn"
+      Name: !Sub "cloud-atlas-${Environment}-atlas-table-arn"
   MarkersTable:
-    Description: "The snappin markers table"
+    Description: "The cloud atlas markers table"
     Value: !GetAtt MarkersTable.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-markers-table-arn"
+      Name: !Sub "cloud-atlas-${Environment}-markers-table-arn"
   ImagesTable:
-    Description: "The snappin images table"
+    Description: "The cloud atlas images table"
     Value: !GetAtt ImagesTable.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-images-table-arn"
+      Name: !Sub "cloud-atlas-${Environment}-images-table-arn"
   OwnersTable:
-    Description: "The snappin owners table"
+    Description: "The cloud atlas owners table"
     Value: !GetAtt OwnersTable.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-owners-table-arn"
+      Name: !Sub "cloud-atlas-${Environment}-owners-table-arn"
   ImagesTableLSI:
-    Description: "The snappin images table LSI"
+    Description: "The cloud atlas images table LSI"
     Value: !Join
       - ""
       - - !GetAtt ImagesTable.Arn
-        - !Sub "/index/snappin-${Environment}-images-table-LSI"
+        - !Sub "/index/cloud-atlas-${Environment}-images-table-LSI"
     Export:
-      Name: !Sub "snappin-${Environment}-images-table-LSI"
+      Name: !Sub "cloud-atlas-${Environment}-images-table-LSI"
   OwnersTableLSI:
-    Description: "The snappin owners table LSI"
+    Description: "The cloud-atlas owners table LSI"
     Value: !Join
       - ""
       - - !GetAtt OwnersTable.Arn
-        - !Sub "/index/snappin-${Environment}-owners-table-LSI"
+        - !Sub "/index/cloud-atlas-${Environment}-owners-table-LSI"
     Export:
-      Name: !Sub "snappin-${Environment}-owners-table-LSI"
+      Name: !Sub "cloud-atlas-${Environment}-owners-table-LSI"

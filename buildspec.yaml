@@ -1,0 +1,20 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      - echo Starting cloud-atlas deployment for environment $environment
+  build:
+    commands:
+      - aws cloudformation deploy --template-file ./vpc/template.yaml --stack-name my-stack-name-$ENVIRONMENT --parameter-overrides Environment=$ENVIRONMENT --capabilities CAPABILITY_IAM
+
+      # - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --config-env $environment --template yaml/vpc/template.yaml --stack-name snappin-vpc-$environment
+      # - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --config-env $environment --template yaml/dynamodb/template.yaml --stack-name snappin-dynamodb-$environment
+      # - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --config-env $environment --template yaml/cloudfront/template.yaml --stack-name snappin-cloudfront-$environment
+      # - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --config-env $environment --template yaml/secrets-manager/template.yaml --stack-name snappin-secrets-manager-$environment
+      # - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --config-env $environment --template yaml/s3/template.yaml --stack-name snappin-s3-$environment
+      # - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --config-env $environment --template yaml/cognito/template.yaml --stack-name snappin-cognito-$environment
+      # - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --config-env $environment --template yaml/api/template.yaml --stack-name snappin-api-$environment
+      # - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --config-env $environment --template yaml/step-fn/template.yaml --stack-name snappin-stepFn-$environment
+      # - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --config-env $environment --template yaml/event-bridge/template.yaml --stack-name snappin-event-bridge-$environment

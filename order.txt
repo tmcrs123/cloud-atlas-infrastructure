@@ -1,4 +1,0 @@
--VPC
--Dynamo DB
--Cognito (needs cloudformation)
--S3

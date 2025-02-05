@@ -11,8 +11,8 @@ Resources:
   ApiGatewayRestApi:
     Type: "AWS::ApiGateway::RestApi"
     Properties:
-      Name: "snappin-api"
-      Description: "API Gateway for snappin"
+      Name: "cloud-atlas-api"
+      Description: "API Gateway for cloud-atlas"
       FailOnWarnings: true
 
   ApiGatewayResource:
@@ -125,7 +125,7 @@ Resources:
       RestApiId:
         Ref: "ApiGatewayRestApi"
       ProviderARNs:
-        - !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/snappin-${Environment}-user-pool"
+        - !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/cloud-atlas-${Environment}-user-pool"
 
 Outputs:
   ApiGatewayUrl:
@@ -133,4 +133,4 @@ Outputs:
     Value:
       Fn::Sub: "https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com"
     Export:
-      Name: !Sub "snappin-${Environment}-api-gateway-endpoint"
+      Name: !Sub "cloud-atlas-${Environment}-api-gateway-endpoint"

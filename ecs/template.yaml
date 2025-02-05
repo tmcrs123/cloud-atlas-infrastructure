@@ -11,7 +11,7 @@ Resources:
   FargateTaskDefinition:
     Type: "AWS::ECS::TaskDefinition"
     Properties:
-      Family: !Sub "snappin-${Environment}"
+      Family: !Sub "cloud-atlas-${Environment}"
       RuntimePlatform:
         CpuArchitecture: X86_64
         OperatingSystemFamily: LINUX
@@ -23,16 +23,16 @@ Resources:
       ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
       TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
-        - Name: !Sub "snappin-${Environment}-container"
+        - Name: !Sub "cloud-atlas-${Environment}-container"
           Image: !Join
             - ""
-            - - !ImportValue snappin-ecr-repository-uri
+            - - !ImportValue cloud-atlas-ecr-repository-uri
               - ":latest"
           Essential: true
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Sub "/ecs/snappin-${Environment}"
+              awslogs-group: !Sub "/ecs/cloud-atlas-${Environment}"
               awslogs-region: us-east-1
               awslogs-stream-prefix: ecs
           PortMappings:
@@ -48,7 +48,7 @@ Resources:
             - Name: DOMAIN
               Value: !Join
                 - ""
-                - - Fn::ImportValue: !Sub "snappin-${Environment}-api-gateway-endpoint"
+                - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-api-gateway-endpoint"
             - Name: SUBDOMAIN
               Value: www
             - Name: ENVIRONMENT
@@ -62,29 +62,29 @@ Resources:
             - Name: PUBLIC_KEY_URI
               Value: !Join
                 - ""
-                - - Fn::ImportValue: !Sub "snappin-${Environment}-well-know-jwts"
-            - Name: MAPS_TABLE_NAME
-              Value: !Sub "snappin-${Environment}-maps"
+                - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-well-know-jwts"
+            - Name: ATLAS_TABLE_NAME
+              Value: !Sub "cloud-atlas-${Environment}-atlas"
             - Name: IMAGES_TABLE_NAME
-              Value: !Sub "snappin-${Environment}-images"
+              Value: !Sub "cloud-atlas-${Environment}-images"
             - Name: IMAGES_TABLE_NAME_LSI
-              Value: !Sub "snappin-${Environment}-images-table-LSI"
+              Value: !Sub "cloud-atlas-${Environment}-images-table-LSI"
             - Name: MARKERS_TABLE_NAME
-              Value: !Sub "snappin-${Environment}-markers"
+              Value: !Sub "cloud-atlas-${Environment}-markers"
             - Name: OWNERS_TABLE_NAME
-              Value: !Sub "snappin-${Environment}-owners"
+              Value: !Sub "cloud-atlas-${Environment}-owners"
             - Name: OWNERS_TABLE_NAME_LSI
-              Value: !Sub "snappin-${Environment}-owners-table-LSI"
+              Value: !Sub "cloud-atlas-${Environment}-owners-table-LSI"
             - Name: REGION
               Value: us-east-1
             - Name: QUEUE_URL
               Value: !Join
                 - ""
-                - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-images-queue-url"
+                - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-images-queue-url"
             - Name: TOPIC_ARN
               Value: !Join
                 - ""
-                - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
+                - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-bucket-events-topic-arn"
             - Name: QUEUE_MAX_NUM_MESSAGES
               Value: 10
             - Name: QUEUE_WAIT_TIME_SECONDS
@@ -92,9 +92,9 @@ Resources:
             - Name: QUEUE_POLLING_INTERVAL
               Value: 3600
             - Name: S3_DUMP_BUCKET_NAME
-              Value: !Sub "snappin-${Environment}-dump"
+              Value: !Sub "cloud-atlas-${Environment}-dump"
             - Name: S3_OPTIMIZED_BUCKET_NAME
-              Value: !Sub "snappin-${Environment}-optimized"
+              Value: !Sub "cloud-atlas-${Environment}-optimized"
             - Name: S3_PRESIGNED_URL_EXPIRATION_IN_SECONDS
               Value: 300
             - Name: QUEUE_ENABLED
@@ -104,17 +104,17 @@ Resources:
             - Name: OPTIMIZED_PHOTOS_DISTRIBUTION_URL
               Value: !Join
                 - ""
-                - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
+                - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
             - Name: OPTIMIZED_PHOTOS_PRIVATE_KEY_NAME
-              Value: !Sub "snappin-${Environment}-cloudfront-private-key"
+              Value: !Sub "cloud-atlas-${Environment}-cloudfront-private-key"
             - Name: OPTIMIZED_PHOTOS_KEYPAIR_ID
               Value: !Join
                 - ""
-                - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-photos-cloudfront-public-key-id"
+                - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-photos-cloudfront-public-key-id"
   ECSCluster:
     Type: "AWS::ECS::Cluster"
     Properties:
-      ClusterName: !Sub "snappin-${Environment}"
+      ClusterName: !Sub "cloud-atlas-${Environment}"
       CapacityProviders:
         - FARGATE
         - FARGATE_SPOT
@@ -125,7 +125,7 @@ Resources:
       Cluster: !Ref ECSCluster
       DesiredCount: 1
       LaunchType: "FARGATE"
-      ServiceName: !Sub "snappin-${Environment}-service"
+      ServiceName: !Sub "cloud-atlas-${Environment}-service"
       TaskDefinition: !Ref FargateTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -133,16 +133,16 @@ Resources:
           SecurityGroups:
             - !Ref ECSSecurityGroup
           Subnets:
-            - Fn::ImportValue: !Sub snappin-${Environment}-public-subnet-one-id
-            - Fn::ImportValue: !Sub snappin-${Environment}-public-subnet-two-id
+            - Fn::ImportValue: !Sub cloud-atlas-${Environment}-public-subnet-one-id
+            - Fn::ImportValue: !Sub cloud-atlas-${Environment}-public-subnet-two-id
 
   ECSSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: !Sub "Security group for snappin-${Environment} ECS service"
+      GroupDescription: !Sub "Security group for cloud-atlas-${Environment} ECS service"
       VpcId: !Join
         - ""
-        - - Fn::ImportValue: !Sub "snappin-${Environment}-vpc"
+        - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-vpc"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 3000
@@ -182,7 +182,7 @@ Resources:
             Action:
               - "sts:AssumeRole"
       Policies:
-        - PolicyName: !Sub "snappin-${Environment}-ecsTaskRolePolicy"
+        - PolicyName: !Sub "cloud-atlas-${Environment}-ecsTaskRolePolicy"
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -197,13 +197,13 @@ Resources:
                   - "sqs:DeleteMessage"
                 Resource: !Join
                   - ""
-                  - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-images-queue-arn"
+                  - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-images-queue-arn"
               - Effect: "Allow"
                 Action:
                   - "sns:Publish"
                 Resource: !Join
                   - ""
-                  - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
+                  - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-bucket-events-topic-arn"
               - Effect: "Allow"
                 Action:
                   - "dynamodb:PutItem"
@@ -216,42 +216,42 @@ Resources:
                 Resource:
                   - !Join
                     - ""
-                    - - Fn::ImportValue: !Sub "snappin-${Environment}-images-table-arn"
+                    - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-images-table-arn"
                   - !Join
                     - ""
-                    - - Fn::ImportValue: !Sub "snappin-${Environment}-maps-table-arn"
+                    - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-atlas-table-arn"
                   - !Join
                     - ""
-                    - - Fn::ImportValue: !Sub "snappin-${Environment}-markers-table-arn"
+                    - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-markers-table-arn"
                   - !Join
                     - ""
-                    - - Fn::ImportValue: !Sub "snappin-${Environment}-images-table-LSI"
+                    - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-images-table-LSI"
                   - !Join
                     - ""
-                    - - Fn::ImportValue: !Sub "snappin-${Environment}-owners-table-LSI"
+                    - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-owners-table-LSI"
                   - !Join
                     - ""
-                    - - Fn::ImportValue: !Sub "snappin-${Environment}-owners-table-arn"
+                    - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-owners-table-arn"
               - Effect: "Allow"
                 Action:
                   - secretsmanager:GetSecretValue"
                 Resource:
                   - !Join
                     - ""
-                    - - Fn::ImportValue: !Sub "snappin-${Environment}-cloudfront-private-key-arn"
+                    - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-cloudfront-private-key-arn"
 Outputs:
   ECSSecurityGroup:
-    Description: The ARN of the security group attached to the snappin ECS service
+    Description: The ARN of the security group attached to the cloud-atlas ECS service
     Value: !Ref ECSSecurityGroup
     Export:
-      Name: !Sub "snappin-${Environment}-ecs-security-group"
+      Name: !Sub "cloud-atlas-${Environment}-ecs-security-group"
   TaskExecutionRole:
-    Description: The ARN of the task execution role attached to the snappin-api ECS task definition
+    Description: The ARN of the task execution role attached to the cloud-atlas-api ECS task definition
     Value: !Ref TaskExecutionRole
     Export:
-      Name: !Sub "snappin-${Environment}-task-execution-role"
+      Name: !Sub "cloud-atlas-${Environment}-task-execution-role"
   TaskRole:
-    Description: The ARN of the task role attached to the snappin-api ECS task definition
+    Description: The ARN of the task role attached to the cloud-atlas-api ECS task definition
     Value: !Ref TaskRole
     Export:
-      Name: !Sub "snappin-${Environment}-task-role"
+      Name: !Sub "cloud-atlas-${Environment}-task-role"

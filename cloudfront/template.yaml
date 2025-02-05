@@ -7,6 +7,8 @@ Parameters:
       - test
       - production
     Default: test
+Conditions:
+  isTest: !Equals [!Ref Environment, test]
 Resources:
   OptimizedPhotosCloudfrontDistribution:
     Type: AWS::CloudFront::Distribution
@@ -26,13 +28,48 @@ Resources:
           TargetOriginId: !Sub "snappin-${Environment}-optimized"
           TrustedKeyGroups:
             - !Ref OptimizedPhotosCloudfrontKeyGroup
-          # FunctionAssociations:
-          #   -   EventType: viewer-request
-          #       FunctionARN: !GetAtt snappinOptimizedPhotosPreventRefererFunction.FunctionARN
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt OptimizedPhotosPreventReferrerFunction.FunctionARN
 
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # CachingOptimized
           OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf # CORS-S3Origin
           ViewerProtocolPolicy: redirect-to-https
+
+  OptimizedPhotosPreventReferrerFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub snappin-${Environment}-optimized-photos-prevent-referer-function
+      AutoPublish: true
+      FunctionCode: !If
+        - isTest
+        - !Sub |
+          function handler(event) {
+
+            if(event.request.headers['referer'].value.includes('http://localhost:4200/')){
+              return event.request;
+            } else {
+              return {
+                  statusCode: 401,
+                  statusDescription: 'Unauthorized'
+                }
+            }
+          }
+        - !Sub |
+          function handler(event) {
+
+            if(event.request.headers['referer'].value.includes('https://idontexistyet/')){
+              return event.request;
+            } else {
+              return {
+                  statusCode: 401,
+                  statusDescription: 'Unauthorized'
+                }
+            }
+          }
+      FunctionConfig:
+        Comment: Only allow certain referrers to fetch images
+        Runtime: cloudfront-js-2.0
 
   OptimizedPhotosCloudfrontKeyGroup:
     Type: AWS::CloudFront::KeyGroup
