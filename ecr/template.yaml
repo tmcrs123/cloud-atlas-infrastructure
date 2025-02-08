@@ -1,20 +1,20 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Resources:
-  SnappinECRRepository:
+  ECRRepository:
     Type: "AWS::ECR::Repository"
     Properties:
-      RepositoryName: "snappin-api"
+      RepositoryName: "cloud-atlas-api"
       ImageTagMutability: MUTABLE
 
 Outputs:
   RepositoryArn:
     Description: "The ARN of the ECR repository"
-    Value: !GetAtt SnappinECRRepository.Arn
+    Value: !GetAtt ECRRepository.Arn
     Export:
-      Name: "snappin-ecr-repository-arn"
+      Name: "cloud-atlas-ecr-repository-arn"
   RepositoryURI:
     Description: "The URI of the ECR repository"
-    Value: !GetAtt SnappinECRRepository.RepositoryUri
+    Value: !GetAtt ECRRepository.RepositoryUri
     Export:
-      Name: snappin-ecr-repository-uri
+      Name: cloud-atlas-ecr-repository-uri

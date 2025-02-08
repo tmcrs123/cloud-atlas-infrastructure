@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      - test
+      - demo
+      - production
+    Default: test
+Resources:
+  ApplicationLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub cloud-atlas-${Environment}-ecs-log-group
+      RetentionInDays: 14

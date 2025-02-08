@@ -2,21 +2,23 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   Environment:
     Type: String
-    Description: Deployment environment (test,production)
     AllowedValues:
       - test
+      - demo
       - production
     Default: test
 Conditions:
   isTest: !Equals [!Ref Environment, test]
+  isDemo: !Equals [!Ref Environment, demo]
+  isProduction: !Equals [!Ref Environment, production]
 Resources:
   OptimizedPhotosCloudfrontDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
         Origins:
-          - DomainName: !Sub "snappin-${Environment}-optimized.s3.us-east-1.amazonaws.com"
-            Id: !Sub "snappin-${Environment}-optimized"
+          - DomainName: !Sub "cloud-atlas-${Environment}-optimized.s3.us-east-1.amazonaws.com"
+            Id: !Sub "cloud-atlas-${Environment}-optimized"
             OriginAccessControlId: !GetAtt CloudfrontDistributionOriginAccessControl.Id
             S3OriginConfig: {}
         Enabled: "true"
@@ -25,7 +27,7 @@ Resources:
             - GET
             - HEAD
             - OPTIONS
-          TargetOriginId: !Sub "snappin-${Environment}-optimized"
+          TargetOriginId: !Sub "cloud-atlas-${Environment}-optimized"
           TrustedKeyGroups:
             - !Ref OptimizedPhotosCloudfrontKeyGroup
           FunctionAssociations:
@@ -39,7 +41,7 @@ Resources:
   OptimizedPhotosPreventReferrerFunction:
     Type: AWS::CloudFront::Function
     Properties:
-      Name: !Sub snappin-${Environment}-optimized-photos-prevent-referer-function
+      Name: !Sub cloud-atlas-${Environment}-optimized-photos-prevent-referer-function
       AutoPublish: true
       FunctionCode: !If
         - isTest
@@ -58,7 +60,7 @@ Resources:
         - !Sub |
           function handler(event) {
 
-            if(event.request.headers['referer'].value.includes('https://idontexistyet/')){
+            if(event.request.headers['referer'].value.includes('https://cloud-atlas-${Environment}/')){
               return event.request;
             } else {
               return {
@@ -77,7 +79,7 @@ Resources:
       KeyGroupConfig:
         Items:
           - !Ref OptimizedPhotosCloudfrontPublicKey
-        Name: !Sub snappin-${Environment}-optimized-photos-cloudfront-keygroup
+        Name: !Sub cloud-atlas-${Environment}-optimized-photos-cloudfront-keygroup
 
   OptimizedPhotosCloudfrontPublicKey:
     Type: AWS::CloudFront::PublicKey
@@ -94,38 +96,38 @@ Resources:
           NXXGPkXSniIy8Ir36D0rMvrPDXouVU4XGQKlyqoczblm4OzUpM4ZO+WHZzHeS1cm
           XQIDAQAB
           -----END PUBLIC KEY-----
-        Name: !Sub snappin-${Environment}-optimized-photos-public-key
+        Name: !Sub cloud-atlas-${Environment}-optimized-photos-public-key
 
   CloudfrontDistributionOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub snappin-${Environment}-origin-access-control
+        Name: !Sub cloud-atlas-${Environment}-origin-access-control
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
 
 Outputs:
   OptimizedPhotosCloudfrontDistribution:
-    Description: "The snappin optimized photos cloudfront distribution id"
+    Description: "The cloud-atlas optimized photos cloudfront distribution id"
     Value: !Ref OptimizedPhotosCloudfrontDistribution
     Export:
-      Name: !Sub "snappin-${Environment}-optimized-photos-cloudfront-distribution-id"
+      Name: !Sub "cloud-atlas-${Environment}-optimized-photos-cloudfront-distribution-id"
 
   OptimizedPhotosCloudfrontDistributionDomainName:
-    Description: "The snappin optimized photos distribution domain name"
+    Description: "The cloud-atlas optimized photos distribution domain name"
     Value: !GetAtt OptimizedPhotosCloudfrontDistribution.DomainName
     Export:
-      Name: !Sub "snappin-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
+      Name: !Sub "cloud-atlas-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
 
   OptimizedPhotosCloudfrontPublicKeyId:
     Description: "The public key for the optimized photos distribution"
     Value: !GetAtt OptimizedPhotosCloudfrontPublicKey.Id
     Export:
-      Name: !Sub "snappin-${Environment}-optimized-photos-cloudfront-public-key-id"
+      Name: !Sub "cloud-atlas-${Environment}-optimized-photos-cloudfront-public-key-id"
 
   OptimizedPhotosCloudfrontKeypairId:
     Description: "The keypair id for the optimized photos distribution"
     Value: !GetAtt OptimizedPhotosCloudfrontKeyGroup.Id
     Export:
-      Name: !Sub "snappin-${Environment}-optimized-photos-keypair-id"
+      Name: !Sub "cloud-atlas-${Environment}-optimized-photos-keypair-id"

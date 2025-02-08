@@ -1,0 +1,861 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Environment:
+    Type: String
+    Description: Deployment of cloud atlas test
+    Default: test
+  MessageHandlerLambdaS3ObjectVersion:
+    Type: String
+  ProcessImageLambdaS3ObjectVersion:
+    Type: String
+Mappings:
+  # Hard values for the subnet masks. These masks define
+  # the range of internal IP addresses that can be assigned.
+  # The VPC can have all IP's from 10.0.0.0 to 10.0.255.255
+  # There are four subnets which cover the ranges:
+  #
+  # 10.0.0.0 - 10.0.63.255 (16384 IP addresses)
+  # 10.0.64.0 - 10.0.127.255 (16384 IP addresses)
+  # 10.0.128.0 - 10.0.191.255 (16384 IP addresses)
+  # 10.0.192.0 - 10.0.255.0 (16384 IP addresses)
+  #
+  SubnetConfig:
+    VPC:
+      CIDR: "10.0.0.0/16"
+    PublicOne:
+      CIDR: "10.0.0.0/18"
+    PublicTwo:
+      CIDR: "10.0.64.0/18"
+  ############################################# VPC
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: !FindInMap ["SubnetConfig", "VPC", "CIDR"]
+      Tags:
+        - Key: Name
+          Value: !Sub "cloud-atlas-${Environment}-vpc"
+
+  PublicSubnetOne:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: { Ref: "AWS::Region" }
+      VpcId: !Ref "VPC"
+      CidrBlock: !FindInMap ["SubnetConfig", "PublicOne", "CIDR"]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "cloud-atlas-${Environment}-public-subnet-one"
+
+  PublicSubnetTwo:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: { Ref: "AWS::Region" }
+      VpcId: !Ref "VPC"
+      CidrBlock: !FindInMap ["SubnetConfig", "PublicTwo", "CIDR"]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "cloud-atlas-${Environment}-public-subnet-two"
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "cloud-atlas-${Environment}-internet-gateway"
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref "VPC"
+      InternetGatewayId: !Ref "InternetGateway"
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref "VPC"
+      Tags:
+        - Key: Name
+          Value: !Sub "cloud-atlas-${Environment}-public-route-table"
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref "PublicRouteTable"
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref "InternetGateway"
+
+  PublicSubnetOneRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetOne
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetTwoRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetTwo
+      RouteTableId: !Ref PublicRouteTable
+
+  ContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to the Fargate containers
+      VpcId: !Ref "VPC"
+
+  ContainerSecurityGroupSelfIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ContainerSecurityGroup
+      SourceSecurityGroupId: !Ref ContainerSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3000
+      ToPort: 3000
+
+  ############################## DYNAMO
+
+  AtlasTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "cloud-atlas-${Environment}-atlas"
+      AttributeDefinitions:
+        - AttributeName: atlasId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: atlasId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+
+  MarkersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "cloud-atlas-${Environment}-markers"
+      AttributeDefinitions:
+        - AttributeName: atlasId
+          AttributeType: S
+        - AttributeName: markerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: atlasId
+          KeyType: HASH
+        - AttributeName: markerId
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+
+  ImagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "cloud-atlas-${Environment}-images"
+      AttributeDefinitions:
+        - AttributeName: atlasId
+          AttributeType: S
+        - AttributeName: imageId
+          AttributeType: S
+        - AttributeName: markerId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: atlasId
+          KeyType: HASH
+        - AttributeName: imageId
+          KeyType: RANGE
+      LocalSecondaryIndexes:
+        - IndexName: !Sub "cloud-atlas-${Environment}-images-table-LSI"
+          KeySchema:
+            - AttributeName: atlasId
+              KeyType: HASH
+            - AttributeName: markerId
+              KeyType: RANGE
+          Projection:
+            NonKeyAttributes:
+              - "atlasId"
+              - "imageId"
+              - "comment"
+            ProjectionType: "INCLUDE"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+
+  OwnersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "cloud-atlas-${Environment}-owners"
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: atlasId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: atlasId
+          KeyType: RANGE
+      LocalSecondaryIndexes:
+        - IndexName: !Sub "cloud-atlas-${Environment}-owners-table-LSI"
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: atlasId
+              KeyType: RANGE
+          Projection:
+            NonKeyAttributes:
+              - "atlasId"
+              - "userId"
+            ProjectionType: "INCLUDE"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+
+  # ################################### CLOUDFRONT
+  OptimizedPhotosCloudfrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !Sub "cloud-atlas-${Environment}-optimized.s3.us-east-1.amazonaws.com"
+            Id: !Sub "cloud-atlas-${Environment}-optimized"
+            OriginAccessControlId: !GetAtt CloudfrontDistributionOriginAccessControl.Id
+            S3OriginConfig: {}
+        Enabled: "true"
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          TargetOriginId: !Sub "cloud-atlas-${Environment}-optimized"
+          TrustedKeyGroups:
+            - !Ref OptimizedPhotosCloudfrontKeyGroup
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt OptimizedPhotosPreventReferrerFunction.FunctionARN
+
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # CachingOptimized
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf # CORS-S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+
+  OptimizedPhotosPreventReferrerFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-optimized-photos-prevent-referer-function
+      AutoPublish: true
+      FunctionCode: |
+        function handler(event) {
+
+          if(event.request.headers['referer'].value.includes('http://localhost:4200/')){
+            return event.request;
+          } else {
+            return {
+                statusCode: 401,
+                statusDescription: 'Unauthorized'
+              }
+          }
+        }
+      FunctionConfig:
+        Comment: Only allow certain referrers to fetch images
+        Runtime: cloudfront-js-2.0
+
+  OptimizedPhotosCloudfrontKeyGroup:
+    Type: AWS::CloudFront::KeyGroup
+    Properties:
+      KeyGroupConfig:
+        Items:
+          - !Ref OptimizedPhotosCloudfrontPublicKey
+        Name: !Sub cloud-atlas-${Environment}-optimized-photos-cloudfront-keygroup
+
+  OptimizedPhotosCloudfrontPublicKey:
+    Type: AWS::CloudFront::PublicKey
+    Properties:
+      PublicKeyConfig:
+        CallerReference: !Sub T1LTt07XlT${Environment} ##just needs to be a random string, this has no meaning
+        EncodedKey: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzovGf4P2QHO/ToAZfDWd
+          SnDhspIsmyFssBHa2vvqyH4Zx/HturUq0jcao6V9met0YGFS4kIwZmYm4wTbZXXE
+          jYAuC+rS2dFYNfG3AlmuynlPtMIPsgIaJlsbF078GajW1p6VAtHMS1HyQCRBT4UJ
+          nQOZ7ygiuFQM0NOzCYX1V4jO57cW3PUWt1Vd0bmJIT4V77ODD9QURm2FN5IrFUU9
+          tkjsAMAthgeKFQsDZkAPSHjwlIOkLxuebHVR7Cf0yd1tZuTfDzp0Hmq9HZBzHbBU
+          NXXGPkXSniIy8Ir36D0rMvrPDXouVU4XGQKlyqoczblm4OzUpM4ZO+WHZzHeS1cm
+          XQIDAQAB
+          -----END PUBLIC KEY-----
+        Name: !Sub cloud-atlas-${Environment}-optimized-photos-public-key
+
+  CloudfrontDistributionOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub cloud-atlas-${Environment}-origin-access-control
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ############################################# COGNITO
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "cloud-atlas-${Environment}-user-pool"
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: false
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      UsernameAttributes:
+        - email
+      MfaConfiguration: "OFF"
+      EmailVerificationSubject: "Your verification code"
+      EmailVerificationMessage: "Your verification code is {####}"
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "cloud-atlas-${Environment}-user-pool-client"
+      UserPoolId: !Ref CognitoUserPool
+      SupportedIdentityProviders:
+        - COGNITO
+      GenerateSecret: false
+      EnableTokenRevocation: true
+      PreventUserExistenceErrors: ENABLED
+      ExplicitAuthFlows:
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+      CallbackURLs:
+        - "http://localhost:4200/redirect"
+        - !Sub https://cloud-atlas-${Environment}/redirect
+      LogoutURLs:
+        - "http://localhost:4200"
+        - !Sub https://cloud-atlas-${Environment}
+
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub cloud-atlas-${Environment}
+      UserPoolId: !Ref CognitoUserPool
+
+  # ########################################## Secrets Manager
+  CloudfrontPrivateKey:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-cloudfront-private-key
+      Description: The private key used by cloudfront to sign urls
+
+  # ########################################## SQS
+  OptimizedImagesQueue:
+    Type: "AWS::SQS::Queue"
+    Properties:
+      QueueName: !Sub "cloud-atlas-${Environment}-optimized-images-queue"
+      VisibilityTimeout: 30
+      MessageRetentionPeriod: 345600
+      DelaySeconds: 0
+      MaximumMessageSize: 262144
+      ReceiveMessageWaitTimeSeconds: 0
+
+  # ########################################## SNS
+  BucketEventsTopic:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      DisplayName: !Sub "cloud-atlas-${Environment}-bucket-events-topic"
+      TopicName: !Sub "cloud-atlas-${Environment}-bucket-events-topic"
+
+  BucketEventsTopicSubscription:
+    Type: "AWS::SNS::Subscription"
+    Properties:
+      TopicArn: !Ref BucketEventsTopic
+      Protocol: lambda
+      Endpoint: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:cloud-atlas-${Environment}-message-handler
+
+  BucketEventsTopicPolicy:
+    Type: "AWS::SNS::TopicPolicy"
+    Properties:
+      Topics:
+        - !Ref BucketEventsTopic
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "s3.amazonaws.com"
+            Action: "SNS:Publish"
+            Resource: !Ref BucketEventsTopic
+            Condition:
+              StringEquals:
+                Aws:SourceAccount: !Sub "${AWS::AccountId}"
+
+  # ########################################## S3
+  DumpBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "cloud-atlas-${Environment}-dump"
+      AccessControl: Private
+      NotificationConfiguration:
+        TopicConfigurations:
+          - Topic: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cloud-atlas-test-bucket-events-topic
+            Event: "s3:ObjectCreated:*"
+          - Topic: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cloud-atlas-test-bucket-events-topic
+            Event: "s3:ObjectRemoved:*"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - POST
+            AllowedOrigins:
+              - "*"
+            MaxAge: 3600
+
+  OptimizedBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "cloud-atlas-${Environment}-optimized"
+      AccessControl: Private
+      NotificationConfiguration:
+        TopicConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Topic: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cloud-atlas-test-bucket-events-topic
+
+  # ############################################## LAMBDA
+  ProcessImageFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: !Sub "cloud-atlas-${Environment}-process-image"
+      Handler: index.handler
+      Role: !GetAtt ProcessImageRole.Arn
+      Runtime: nodejs18.x
+      Code:
+        S3Bucket: cloud-atlas-lambdas
+        S3Key: process-image.zip
+        S3ObjectVersion: !Sub ${ProcessImageLambdaS3ObjectVersion}
+      Environment:
+        Variables:
+          REGION: !Sub ${AWS::Region}
+          NODE_ENV: !Sub ${Environment}
+          LOCAL_ENDPOINT: placeholder
+          DUMP_BUCKET_NAME: !Sub "cloud-atlas-${Environment}-dump"
+          OPTIMIZED_BUCKET_NAME: !Sub "cloud-atlas-${Environment}-optimized"
+      Tags:
+        - Key: Name
+          Value: !Sub "cloud-atlas-${Environment}-process-image"
+
+  MessageHandlerFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: !Sub "cloud-atlas-${Environment}-message-handler"
+      Handler: index.handler
+      Role: !GetAtt MessageHandlerRole.Arn
+      Runtime: nodejs18.x
+      Code:
+        S3Bucket: cloud-atlas-lambdas
+        S3Key: message-handler.zip
+        S3ObjectVersion: !Sub ${MessageHandlerLambdaS3ObjectVersion}
+      Environment:
+        Variables:
+          REGION: !Sub ${AWS::Region}
+          NODE_ENV: !Sub ${Environment}
+          LOCAL_ENDPOINT: placeholder
+          DUMP_BUCKET_NAME: !Sub "cloud-atlas-${Environment}-dump"
+          OPTIMIZED_BUCKET_NAME: !Sub "cloud-atlas-${Environment}-optimized"
+          PROCESS_IMAGE_FN_NAME: !Sub "cloud-atlas-${Environment}-process-image"
+          QUEUE_URL: !Ref OptimizedImagesQueue
+      Tags:
+        - Key: Name
+          Value: !Sub "cloud-atlas-${Environment}-message-handler"
+
+  MessageHandlerInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MessageHandlerFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref BucketEventsTopic
+
+  ProcessImageRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub cloud-atlas-${Environment}-process-image-lambda-ReadFromDump
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::cloud-atlas-${Environment}-dump/*"
+        - PolicyName: !Sub cloud-atlas-${Environment}-process-image-lambda-WriteToOptimized
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: !Sub "arn:aws:s3:::cloud-atlas-${Environment}-optimized/*"
+
+  MessageHandlerRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LambdaInvokePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt ProcessImageFunction.Arn
+        - PolicyName: SQSSendMessagePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt OptimizedImagesQueue.Arn
+        - PolicyName: removeFromOptimizedBucketRole
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::cloud-atlas-${Environment}-optimized/*"
+
+  ###################### DNS NAMESPACE & DISCOVERY
+  PrivateDNSNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Vpc: !Ref VPC
+      Name: !Sub cloud-atlas-${Environment}
+
+  ServiceDiscoveryCloudAtlas:
+    Type: "AWS::ServiceDiscovery::Service"
+    Properties:
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 60
+        NamespaceId: !GetAtt PrivateDNSNamespace.Id
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: !Sub cloud.atlas.${Environment}
+
+    # ######### CLOUDWATCH
+  ApplicationLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    Properties:
+      LogGroupName: !Sub cloud-atlas-${Environment}-ecs-log-group
+      RetentionInDays: 14
+
+  ###### HTTP API
+  HttpApiVPCLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: !Ref Environment
+      SecurityGroupIds:
+        - !Ref ContainerSecurityGroup
+      SubnetIds:
+        - !Ref PublicSubnetOne
+        - !Ref PublicSubnetTwo
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: cloud-atlas-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+          - PATCH
+        AllowHeaders:
+          - "*"
+        MaxAge: 86400
+
+  HttpApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "ANY /{proxy+}"
+      Target: !Sub "integrations/${HttpApiIntegration}"
+
+  HttpApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      ConnectionId: !GetAtt HttpApiVPCLink.VpcLinkId
+      ConnectionType: VPC_LINK
+      Description: !Sub cloud-atlas-${Environment} api integration
+      IntegrationMethod: ANY
+      IntegrationType: HTTP_PROXY
+      IntegrationUri: !GetAtt ServiceDiscoveryCloudAtlas.Arn
+      PayloadFormatVersion: "1.0"
+
+  HttpApiTestStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: test
+      AutoDeploy: false
+
+  HttpApiDemoStage:
+    Type: "AWS::ApiGatewayV2::Stage"
+    Properties:
+      StageName: "demo"
+      ApiId: !Ref "HttpApi"
+      AutoDeploy: false
+
+  HttpApiProdStage:
+    Type: "AWS::ApiGatewayV2::Stage"
+    Properties:
+      StageName: "production"
+      ApiId: !Ref "HttpApi"
+      AutoDeploy: false
+
+  # ####### ECS
+  # FargateTaskDefinition:
+  #   Type: "AWS::ECS::TaskDefinition"
+  #   Properties:
+  #     Family: !Sub "cloud-atlas-${Environment}"
+  #     RuntimePlatform:
+  #       CpuArchitecture: X86_64
+  #       OperatingSystemFamily: LINUX
+  #     Cpu: "1024"
+  #     Memory: "2048"
+  #     NetworkMode: "awsvpc"
+  #     RequiresCompatibilities:
+  #       - "FARGATE"
+  #     ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+  #     TaskRoleArn: !GetAtt TaskRole.Arn
+  #     ContainerDefinitions:
+  #       - Name: !Sub "cloud-atlas-${Environment}-container"
+  #         Image: !Join
+  #           - ""
+  #           - - !Sub ${AWS::AccountId}.dkr.ecr.us-east-1.amazonaws.com/cloud-atlas-api
+  #             - ":latest"
+  #         Essential: true
+  #         LogConfiguration:
+  #           LogDriver: awslogs
+  #           Options:
+  #             awslogs-group: !Sub cloud-atlas-${Environment}-ecs-log-group
+  #             awslogs-region: us-east-1
+  #             awslogs-stream-prefix: ecs
+  #         PortMappings:
+  #           - ContainerPort: 3000
+  #             HostPort: 3000
+  #             Protocol: "tcp"
+  #             AppProtocol: http
+  #         Environment:
+  #           - Name: APP_VERSION
+  #             Value: !Sub ${Environment}
+  #           - Name: ATLAS_TABLE_NAME
+  #             Value: !Sub "cloud-atlas-${Environment}-atlas"
+  #           - Name: BIND_ADDRESS
+  #             Value: 0.0.0.0
+  #           - Name: DOMAIN
+  #             Value: !Ref HttpApi
+  #           - Name: DUMP_BUCKET_NAME
+  #             Value: !Sub "cloud-atlas-${Environment}-dump"
+  #           - Name: ENVIRONMENT
+  #             Value: !Sub ${Environment}
+  #           - Name: GRACEFUL_SHUTDOWN_TIMEOUT_IN_MSECS
+  #             Value: 10000
+  #           - Name: IMAGES_TABLE_LSI_NAME
+  #             Value: !Sub "cloud-atlas-${Environment}-images-table-LSI"
+  #           - Name: IMAGES_TABLE_NAME
+  #             Value: !Sub "cloud-atlas-${Environment}-images"
+  #           - Name: LOG_LEVEL
+  #             Value: info
+  #           - Name: MARKERS_TABLE_NAME
+  #             Value: !Sub "cloud-atlas-${Environment}-markers"
+  #           - Name: OPTIMIZED_BUCKET_NAME
+  #             Value: !Sub "cloud-atlas-${Environment}-optimized"
+  #           - Name: OPTIMIZED_PHOTOS_DISTRIBUTION_URL
+  #             Value: !GetAtt OptimizedPhotosCloudfrontDistribution.DomainName
+  #           - Name: OPTIMIZED_PHOTOS_KEYPAIR_ID
+  #             Value: !GetAtt OptimizedPhotosCloudfrontKeyGroup.Id
+  #           - Name: OPTIMIZED_PHOTOS_PRIVATE_KEY_NAME
+  #             Value: !Sub "cloud-atlas-${Environment}-cloudfront-private-key"
+  #           - Name: OWNERS_TABLE_LSI_NAME
+  #             Value: !Sub "cloud-atlas-${Environment}-owners-table-LSI"
+  #           - Name: OWNERS_TABLE_NAME
+  #             Value: !Sub "cloud-atlas-${Environment}-owners"
+  #           - Name: PORT
+  #             Value: 3000
+  #           - Name: PRESIGNED_URL_EXPIRATION_IN_SECONDS
+  #             Value: 300
+  #           - Name: PROTOCOL
+  #             Value: http
+  #           - Name: PUBLIC_KEY_URI
+  #             Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}/.well-known/jwks.json"
+  #           - Name: QUEUE_ENABLED
+  #             Value: true
+  #           - Name: QUEUE_MAX_NUM_MESSAGES
+  #             Value: 10
+  #           - Name: QUEUE_POLLING_INTERVAL
+  #             Value: 3600
+  #           - Name: QUEUE_URL
+  #             Value: !Ref OptimizedImagesQueue
+  #           - Name: QUEUE_WAIT_TIME_SECONDS
+  #             Value: 10
+  #           - Name: REGION
+  #             Value: us-east-1
+  #           - Name: SUBDOMAIN
+  #             Value: www
+  #           - Name: TOPIC_ARN
+  #             Value: !GetAtt BucketEventsTopic.TopicArn
+  #           - Name: TOPIC_ENABLED
+  #             Value: true
+
+  # ECSCluster:
+  #   Type: "AWS::ECS::Cluster"
+  #   Properties:
+  #     ClusterName: !Sub "cloud-atlas-${Environment}"
+  #     CapacityProviders:
+  #       - FARGATE
+  #       - FARGATE_SPOT
+
+  # ECSService:
+  #   Type: "AWS::ECS::Service"
+  #   Properties:
+  #     Cluster: !Ref ECSCluster
+  #     DesiredCount: 1
+  #     LaunchType: "FARGATE"
+  #     ServiceName: !Sub "cloud-atlas-${Environment}-service"
+  #     TaskDefinition: !Ref FargateTaskDefinition
+  #     ServiceRegistries:
+  #       - RegistryArn: !GetAtt ServiceDiscoveryCloudAtlas.Arn
+  #         Port: 3000
+  #     NetworkConfiguration:
+  #       AwsvpcConfiguration:
+  #         AssignPublicIp: "ENABLED"
+  #         SecurityGroups:
+  #           - !Ref ContainerSecurityGroup
+  #         Subnets:
+  #           - !Ref PublicSubnetOne
+  #           - !Ref PublicSubnetTwo
+
+  # TaskExecutionRole:
+  #   Type: "AWS::IAM::Role"
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: "Allow"
+  #           Principal:
+  #             Service:
+  #               - "ecs-tasks.amazonaws.com"
+  #           Action:
+  #             - "sts:AssumeRole"
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # TaskRole:
+  #   Type: "AWS::IAM::Role"
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: "Allow"
+  #           Principal:
+  #             Service:
+  #               - "ecs-tasks.amazonaws.com"
+  #           Action:
+  #             - "sts:AssumeRole"
+  #     Policies:
+  #       - PolicyName: !Sub "cloud-atlas-${Environment}-ecsTaskRolePolicy"
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: "Allow"
+  #               Action:
+  #                 - "s3:GetObject"
+  #                 - "s3:PutObject"
+  #               Resource: "*"
+  #             - Effect: "Allow"
+  #               Action:
+  #                 - "sqs:ReceiveMessage"
+  #                 - "sqs:DeleteMessage"
+  #               Resource: !GetAtt OptimizedImagesQueue.Arn
+  #             - Effect: "Allow"
+  #               Action:
+  #                 - "sns:Publish"
+  #               Resource: !GetAtt BucketEventsTopic.TopicArn
+  #             - Effect: "Allow"
+  #               Action:
+  #                 - "dynamodb:PutItem"
+  #                 - "dynamodb:GetItem"
+  #                 - "dynamodb:UpdateItem"
+  #                 - "dynamodb:DeleteItem"
+  #                 - "dynamodb:BatchGetItem"
+  #                 - "dynamodb:BatchWriteItem"
+  #                 - "dynamodb:Query"
+  #               Resource:
+  #                 - !Ref ImagesTable
+  #                 - !Join
+  #                   - ""
+  #                   - - !GetAtt ImagesTable.Arn
+  #                     - !Sub "/index/cloud-atlas-${Environment}-images-table-LSI"
+  #                 - !Ref AtlasTable
+  #                 - !Ref MarkersTable
+  #                 - !Ref OwnersTable
+  #                 - !Join
+  #                   - ""
+  #                   - - !GetAtt OwnersTable.Arn
+  #                     - !Sub "/index/cloud-atlas-${Environment}-owners-table-LSI"
+  #             - Effect: "Allow"
+  #               Action:
+  #                 - secretsmanager:GetSecretValue"
+  #               Resource:
+  #                 - !Sub "cloud-atlas-${Environment}-cloudfront-private-key-arn"

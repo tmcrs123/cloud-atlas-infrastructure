@@ -2,60 +2,63 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   Environment:
     Type: String
-    Description: Deployment environment (test,production)
     AllowedValues:
       - test
+      - demo
       - production
     Default: test
+  MessageHandlerLambdaS3ObjectVersion:
+    Type: String
+  ProcessImageLambdaS3ObjectVersion:
+    Type: String
 Resources:
   ProcessImageFunction:
     Type: "AWS::Lambda::Function"
     Properties:
-      FunctionName: !Sub "snappin-${Environment}-process-image"
+      FunctionName: !Sub "cloud-atlas-${Environment}-process-image"
       Handler: index.handler
       Role: !GetAtt ProcessImageRole.Arn
       Runtime: nodejs18.x
       Code:
-        S3Bucket: !Sub "snappin-${Environment}-lambdas"
+        S3Bucket: !Sub "cloud-atlas-${Environment}-lambdas"
         S3Key: process-image.zip
-        S3ObjectVersion: hmspmIYC.mJIz4rVkSCm1K42HO.m_Az8
+        S3ObjectVersion: !Sub ${ProcessImageLambdaS3ObjectVersion}
       Environment:
         Variables:
           REGION: !Sub ${AWS::Region}
           NODE_ENV: !Sub ${Environment}
           LOCAL_ENDPOINT: placeholder
-          DUMP_BUCKET_NAME: !Sub "snappin-${Environment}-dump"
-          OPTIMIZED_BUCKET_NAME: !Sub "snappin-${Environment}-optimized"
+          DUMP_BUCKET_NAME: !Sub "cloud-atlas-${Environment}-dump"
+          OPTIMIZED_BUCKET_NAME: !Sub "cloud-atlas-${Environment}-optimized"
       Tags:
         - Key: Name
-          Value: !Sub "snappin-${Environment}-process-image"
+          Value: !Sub "cloud-atlas-${Environment}-process-image"
 
   MessageHandlerFunction:
     Type: "AWS::Lambda::Function"
     Properties:
-      FunctionName: !Sub "snappin-${Environment}-message-handler"
+      FunctionName: !Sub "cloud-atlas-${Environment}-message-handler"
       Handler: index.handler
       Role: !GetAtt MessageHandlerRole.Arn
       Runtime: nodejs18.x
       Code:
-        S3Bucket: !Sub "snappin-${Environment}-lambdas"
+        S3Bucket: !Sub "cloud-atlas-${Environment}-lambdas"
         S3Key: message-handler.zip
-        S3ObjectVersion: XjLCwGDnUBzIo2Bpbt8e3fsg646_zxsU
+        S3ObjectVersion: !Sub ${MessageHandlerLambdaS3ObjectVersion}
       Environment:
         Variables:
           REGION: !Sub ${AWS::Region}
           NODE_ENV: !Sub ${Environment}
           LOCAL_ENDPOINT: placeholder
-          DUMP_BUCKET_NAME: !Sub "snappin-${Environment}-dump"
-          OPTIMIZED_BUCKET_NAME: !Sub "snappin-${Environment}-optimized"
-          PROCESS_IMAGE_FN_NAME: !Sub "snappin-${Environment}-process-image"
+          DUMP_BUCKET_NAME: !Sub "cloud-atlas-${Environment}-dump"
+          OPTIMIZED_BUCKET_NAME: !Sub "cloud-atlas-${Environment}-optimized"
+          PROCESS_IMAGE_FN_NAME: !Sub "cloud-atlas-${Environment}-process-image"
           QUEUE_URL: !Join
             - ""
-            - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-images-queue-url"
-
+            - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-images-queue-url"
       Tags:
         - Key: Name
-          Value: !Sub "snappin-${Environment}-message-handler"
+          Value: !Sub "cloud-atlas-${Environment}-message-handler"
 
   MessageHandlerInvokePermission:
     Type: AWS::Lambda::Permission
@@ -63,9 +66,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref MessageHandlerFunction
       Principal: sns.amazonaws.com
-      SourceArn: !Join
-        - ""
-        - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
+      SourceArn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cloud-atlas-${Environment}-bucket-events-topic
 
   ProcessImageRole:
     Type: "AWS::IAM::Role"
@@ -80,7 +81,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
-        - PolicyName: !Sub Snappin-${Environment}-process-image-lambda-ReadFromDump
+        - PolicyName: !Sub cloud-atlas-${Environment}-process-image-lambda-ReadFromDump
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -89,15 +90,15 @@ Resources:
                   - s3:GetObject
                   - s3:ListBucket
                   - s3:DeleteObject
-                Resource: !Sub "arn:aws:s3:::snappin-${Environment}-dump/*"
-        - PolicyName: !Sub Snappin-${Environment}-process-image-lambda-WriteToOptimized
+                Resource: !Sub "arn:aws:s3:::cloud-atlas-${Environment}-dump/*"
+        - PolicyName: !Sub cloud-atlas-${Environment}-process-image-lambda-WriteToOptimized
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - s3:PutObject
-                Resource: !Sub "arn:aws:s3:::snappin-${Environment}-optimized/*"
+                Resource: !Sub "arn:aws:s3:::cloud-atlas-${Environment}-optimized/*"
 
   MessageHandlerRole:
     Type: "AWS::IAM::Role"
@@ -129,7 +130,7 @@ Resources:
                   - sqs:SendMessage
                 Resource: !Join
                   - ""
-                  - - Fn::ImportValue: !Sub "snappin-${Environment}-optimized-images-queue-arn"
+                  - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-images-queue-arn"
         - PolicyName: removeFromOptimizedBucketRole
           PolicyDocument:
             Version: "2012-10-17"
@@ -137,26 +138,26 @@ Resources:
               - Effect: Allow
                 Action:
                   - s3:DeleteObject
-                Resource: !Sub "arn:aws:s3:::snappin-${Environment}-optimized/*"
+                Resource: !Sub "arn:aws:s3:::cloud-atlas-${Environment}-optimized/*"
 
 Outputs:
   ProcessImageFnArn:
-    Description: "The ARN of the Snappin process image fn"
+    Description: "The ARN of the cloud-atlas process image fn"
     Value: !GetAtt ProcessImageFunction.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-process-image-lambda-arn"
+      Name: !Sub "cloud-atlas-${Environment}-process-image-lambda-arn"
   ProcessImageFnRoleArn:
-    Description: "The ARN of the Snappin process image fn role"
+    Description: "The ARN of the cloud-atlas process image fn role"
     Value: !GetAtt ProcessImageRole.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-process-image-lambda-role-arn"
+      Name: !Sub "cloud-atlas-${Environment}-process-image-lambda-role-arn"
   MessageHandlerFnArn:
-    Description: "The ARN of the Snappin message handler fn"
+    Description: "The ARN of the cloud-atlas message handler fn"
     Value: !GetAtt MessageHandlerFunction.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-message-handler-lambda-arn"
+      Name: !Sub "cloud-atlas-${Environment}-message-handler-lambda-arn"
   MessageHandlerFnRoleArn:
-    Description: "The ARN of the Snappin message handler fn role"
+    Description: "The ARN of the cloud-atlas message handler fn role"
     Value: !GetAtt MessageHandlerFunction.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-message-handler-lambda-role-arn"
+      Name: !Sub "cloud-atlas-${Environment}-message-handler-lambda-role-arn"

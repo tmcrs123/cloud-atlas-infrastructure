@@ -2,26 +2,22 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   Environment:
     Type: String
-    Description: Deployment environment (test,production)
     AllowedValues:
       - test
+      - demo
       - production
     Default: test
 Resources:
   DumpBucket:
     Type: "AWS::S3::Bucket"
     Properties:
-      BucketName: !Sub "snappin-${Environment}-dump"
+      BucketName: !Sub "cloud-atlas-${Environment}-dump"
       AccessControl: Private
       NotificationConfiguration:
         TopicConfigurations:
-          - Topic: !Join
-              - ""
-              - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
+          - Topic: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cloud-atlas-${Environment}-bucket-events-topic
             Event: "s3:ObjectCreated:*"
-          - Topic: !Join
-              - ""
-              - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
+          - Topic: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cloud-atlas-${Environment}-bucket-events-topic
             Event: "s3:ObjectRemoved:*"
       CorsConfiguration:
         CorsRules:
@@ -36,36 +32,34 @@ Resources:
   OptimizedBucket:
     Type: "AWS::S3::Bucket"
     Properties:
-      BucketName: !Sub "snappin-${Environment}-optimized"
+      BucketName: !Sub "cloud-atlas-${Environment}-optimized"
+      AccessControl: Private
       NotificationConfiguration:
         TopicConfigurations:
           - Event: "s3:ObjectCreated:*"
-            Topic: !Join
-              - ""
-              - - Fn::ImportValue: !Sub "snappin-${Environment}-bucket-events-topic-arn"
-      AccessControl: Private
+            Topic: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:cloud-atlas-${Environment}-bucket-events-topic
 
   LambdasBucket:
     Type: "AWS::S3::Bucket"
     Properties:
-      BucketName: !Sub "snappin-${Environment}-lambdas"
+      BucketName: !Sub "cloud-atlas-${Environment}-lambdas"
       AccessControl: Private
       VersioningConfiguration:
         Status: Enabled
 
 Outputs:
   DumpBucketArn:
-    Description: "The ARN of the Snappin dump bucket"
+    Description: "The ARN of the cloud-atlas dump bucket"
     Value: !GetAtt DumpBucket.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-dump-bucket-arn"
+      Name: !Sub "cloud-atlas-${Environment}-dump-bucket-arn"
   OptimizedBucketArn:
-    Description: "The ARN of the Snappin optimized bucket"
+    Description: "The ARN of the cloud-atlas optimized bucket"
     Value: !GetAtt OptimizedBucket.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-optimized-bucket-arn"
+      Name: !Sub "cloud-atlas-${Environment}-optimized-bucket-arn"
   LambdasBucketArn:
-    Description: "The ARN of the Snappin Lambda bucket"
+    Description: "The ARN of the cloud-atlas Lambda bucket"
     Value: !GetAtt LambdasBucket.Arn
     Export:
-      Name: !Sub "snappin-${Environment}-lambdas-bucket-arn"
+      Name: !Sub "cloud-atlas-${Environment}-lambdas-bucket-arn"

@@ -1,15 +1,16 @@
 #!/bin/bash
 
-read -p "Enter environment (test/production) [test]: " ENVIRONMENT
+ENVIRONMENT="${1:-test}"
+STACK_NAME="cloud-atlas-${ENVIRONMENT}-sqs"
 
-ENVIRONMENT=${ENVIRONMENT:-test}
+echo "Deploying SQS"
 
-STACK_NAME="snappin-${ENVIRONMENT}-sqs"
-
-aws cloudformation validate-template --template-body file://./sqs/template.yaml
+aws cloudformation validate-template --template-body file://../sqs/template.yaml
 
 aws cloudformation deploy \
-  --template-file ./sqs/template.yaml \
+  --template-file ../sqs/template.yaml \
   --stack-name "$STACK_NAME" \
-  --parameter-overrides file://parameters.json \
+  --parameter-overrides file://../parameters.json \
   --capabilities CAPABILITY_NAMED_IAM
+
+echo "Finished deploying SQS"

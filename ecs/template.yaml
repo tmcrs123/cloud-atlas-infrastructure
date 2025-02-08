@@ -2,9 +2,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   Environment:
     Type: String
-    Description: Deployment environment (test,production)
     AllowedValues:
       - test
+      - demo
       - production
     Default: test
 Resources:
@@ -32,7 +32,7 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Sub "/ecs/cloud-atlas-${Environment}"
+              awslogs-group: !Sub cloud-atlas-${Environment}-ecs-log-group
               awslogs-region: us-east-1
               awslogs-stream-prefix: ecs
           PortMappings:
@@ -41,76 +41,78 @@ Resources:
               Protocol: "tcp"
               AppProtocol: http
           Environment:
-            - Name: APP_BIND_ADDRESS
-              Value: 0.0.0.0
             - Name: APP_VERSION
               Value: !Sub ${Environment}
+            - Name: ATLAS_TABLE_NAME
+              Value: !Sub "cloud-atlas-${Environment}-atlas"
+            - Name: BIND_ADDRESS
+              Value: 0.0.0.0
             - Name: DOMAIN
               Value: !Join
                 - ""
                 - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-api-gateway-endpoint"
-            - Name: SUBDOMAIN
-              Value: www
+            - Name: DUMP_BUCKET_NAME
+              Value: !Sub "cloud-atlas-${Environment}-dump"
             - Name: ENVIRONMENT
               Value: !Sub ${Environment}
+            - Name: GRACEFUL_SHUTDOWN_TIMEOUT_IN_MSECS
+              Value: 10000
+            - Name: IMAGES_TABLE_LSI_NAME
+              Value: !Sub "cloud-atlas-${Environment}-images-table-LSI"
+            - Name: IMAGES_TABLE_NAME
+              Value: !Sub "cloud-atlas-${Environment}-images"
             - Name: LOG_LEVEL
               Value: info
+            - Name: MARKERS_TABLE_NAME
+              Value: !Sub "cloud-atlas-${Environment}-markers"
+            - Name: OPTIMIZED_BUCKET_NAME
+              Value: !Sub "cloud-atlas-${Environment}-optimized"
+            - Name: OPTIMIZED_PHOTOS_DISTRIBUTION_URL
+              Value: !Join
+                - ""
+                - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
+            - Name: OPTIMIZED_PHOTOS_KEYPAIR_ID
+              Value: !Join
+                - ""
+                - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-photos-cloudfront-public-key-id"
+            - Name: OPTIMIZED_PHOTOS_PRIVATE_KEY_NAME
+              Value: !Sub "cloud-atlas-${Environment}-cloudfront-private-key"
+            - Name: OWNERS_TABLE_LSI_NAME
+              Value: !Sub "cloud-atlas-${Environment}-owners-table-LSI"
+            - Name: OWNERS_TABLE_NAME
+              Value: !Sub "cloud-atlas-${Environment}-owners"
             - Name: PORT
               Value: 3000
+            - Name: PRESIGNED_URL_EXPIRATION_IN_SECONDS
+              Value: 300
             - Name: PROTOCOL
               Value: http
             - Name: PUBLIC_KEY_URI
               Value: !Join
                 - ""
                 - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-well-know-jwts"
-            - Name: ATLAS_TABLE_NAME
-              Value: !Sub "cloud-atlas-${Environment}-atlas"
-            - Name: IMAGES_TABLE_NAME
-              Value: !Sub "cloud-atlas-${Environment}-images"
-            - Name: IMAGES_TABLE_NAME_LSI
-              Value: !Sub "cloud-atlas-${Environment}-images-table-LSI"
-            - Name: MARKERS_TABLE_NAME
-              Value: !Sub "cloud-atlas-${Environment}-markers"
-            - Name: OWNERS_TABLE_NAME
-              Value: !Sub "cloud-atlas-${Environment}-owners"
-            - Name: OWNERS_TABLE_NAME_LSI
-              Value: !Sub "cloud-atlas-${Environment}-owners-table-LSI"
-            - Name: REGION
-              Value: us-east-1
+            - Name: QUEUE_ENABLED
+              Value: true
+            - Name: QUEUE_MAX_NUM_MESSAGES
+              Value: 10
+            - Name: QUEUE_POLLING_INTERVAL
+              Value: 3600
             - Name: QUEUE_URL
               Value: !Join
                 - ""
                 - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-images-queue-url"
+            - Name: QUEUE_WAIT_TIME_SECONDS
+              Value: 10
+            - Name: REGION
+              Value: us-east-1
+            - Name: SUBDOMAIN
+              Value: www
             - Name: TOPIC_ARN
               Value: !Join
                 - ""
                 - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-bucket-events-topic-arn"
-            - Name: QUEUE_MAX_NUM_MESSAGES
-              Value: 10
-            - Name: QUEUE_WAIT_TIME_SECONDS
-              Value: 10
-            - Name: QUEUE_POLLING_INTERVAL
-              Value: 3600
-            - Name: S3_DUMP_BUCKET_NAME
-              Value: !Sub "cloud-atlas-${Environment}-dump"
-            - Name: S3_OPTIMIZED_BUCKET_NAME
-              Value: !Sub "cloud-atlas-${Environment}-optimized"
-            - Name: S3_PRESIGNED_URL_EXPIRATION_IN_SECONDS
-              Value: 300
-            - Name: QUEUE_ENABLED
-              Value: true
             - Name: TOPIC_ENABLED
               Value: true
-            - Name: OPTIMIZED_PHOTOS_DISTRIBUTION_URL
-              Value: !Join
-                - ""
-                - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-photos-cloudfront-distribution-domain-name"
-            - Name: OPTIMIZED_PHOTOS_PRIVATE_KEY_NAME
-              Value: !Sub "cloud-atlas-${Environment}-cloudfront-private-key"
-            - Name: OPTIMIZED_PHOTOS_KEYPAIR_ID
-              Value: !Join
-                - ""
-                - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-optimized-photos-cloudfront-public-key-id"
   ECSCluster:
     Type: "AWS::ECS::Cluster"
     Properties:
@@ -127,6 +129,9 @@ Resources:
       LaunchType: "FARGATE"
       ServiceName: !Sub "cloud-atlas-${Environment}-service"
       TaskDefinition: !Ref FargateTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt CloudAtlasServiceDiscovery.Arn
+          Port: 3000
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: "ENABLED"
@@ -239,6 +244,27 @@ Resources:
                   - !Join
                     - ""
                     - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-cloudfront-private-key-arn"
+
+  PrivateDNSNamespace:
+    Type: "AWS::ServiceDiscovery::PrivateDnsNamespace"
+    Properties:
+      Vpc: !Join
+        - ""
+        - - Fn::ImportValue: !Sub "cloud-atlas-${Environment}-vpc"
+      Name: "cloud-atlas-private-dns-namespace"
+
+  CloudAtlasServiceDiscovery:
+    Type: "AWS::ServiceDiscovery::Service"
+    Properties:
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 60
+        NamespaceId: !Ref PrivateDNSNamespace
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: "cloud.atlas"
+
 Outputs:
   ECSSecurityGroup:
     Description: The ARN of the security group attached to the cloud-atlas ECS service

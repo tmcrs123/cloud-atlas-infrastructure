@@ -2,5 +2,9 @@
     {
         "ParameterKey": "Environment",
         "ParameterValue": "test"
+    },
+    {
+        "ParameterKey": "MessageHandlerLambdaS3ObjectVersion",
+        "ParameterValue": "replacedAtRuntime"
     }
 ]

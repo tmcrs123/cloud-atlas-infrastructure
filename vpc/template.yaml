@@ -1,11 +1,11 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: This stack deploys a large AWS VPC with internet access
 Parameters:
   Environment:
     Type: String
     Description: Deployment environment (test,production)
     AllowedValues:
       - test
+      - demo
       - production
     Default: test
 Mappings:
@@ -26,10 +26,6 @@ Mappings:
       CIDR: "10.0.0.0/18"
     PublicTwo:
       CIDR: "10.0.64.0/18"
-    # PrivateOne:
-    #   CIDR: '10.0.128.0/18'
-    # PrivateTwo:
-    #   CIDR: '10.0.192.0/18'
 Resources:
   VPC:
     Type: AWS::EC2::VPC
@@ -39,7 +35,7 @@ Resources:
       CidrBlock: !FindInMap ["SubnetConfig", "VPC", "CIDR"]
       Tags:
         - Key: Name
-          Value: !Sub "snappin-${Environment}-vpc"
+          Value: !Sub "cloud-atlas-${Environment}-vpc"
 
   PublicSubnetOne:
     Type: AWS::EC2::Subnet
@@ -53,7 +49,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub "snappin-${Environment}-public-subnet-one"
+          Value: !Sub "cloud-atlas-${Environment}-public-subnet-one"
 
   PublicSubnetTwo:
     Type: AWS::EC2::Subnet
@@ -67,15 +63,15 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub "snappin-${Environment}-public-subnet-two"
+          Value: !Sub "cloud-atlas-${Environment}-public-subnet-two"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub "snappin-${Environment}-internet-gateway"
-  GatewayAttachement:
+          Value: !Sub "cloud-atlas-${Environment}-internet-gateway"
+  GatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       VpcId: !Ref "VPC"
@@ -87,10 +83,10 @@ Resources:
       VpcId: !Ref "VPC"
       Tags:
         - Key: Name
-          Value: !Sub "snappin-${Environment}-public-route-table"
+          Value: !Sub "cloud-atlas-${Environment}-public-route-table"
   PublicRoute:
     Type: AWS::EC2::Route
-    DependsOn: GatewayAttachement
+    DependsOn: GatewayAttachment
     Properties:
       RouteTableId: !Ref "PublicRouteTable"
       DestinationCidrBlock: "0.0.0.0/0"
@@ -112,14 +108,14 @@ Outputs:
     Description: The ID of the VPC that this stack is deployed in
     Value: !Ref "VPC"
     Export:
-      Name: !Sub "snappin-${Environment}-vpc"
+      Name: !Sub "cloud-atlas-${Environment}-vpc"
   PublicSubnetOneId:
     Description: The id of public subnet one
     Value: !Sub "${PublicSubnetOne}"
     Export:
-      Name: !Sub "snappin-${Environment}-public-subnet-one-id"
+      Name: !Sub "cloud-atlas-${Environment}-public-subnet-one-id"
   PublicSubnetTwoId:
     Description: The id of public subnet two
     Value: !Sub "${PublicSubnetTwo}"
     Export:
-      Name: !Sub "snappin-${Environment}-public-subnet-two-id"
+      Name: !Sub "cloud-atlas-${Environment}-public-subnet-two-id"

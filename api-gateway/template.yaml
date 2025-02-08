@@ -2,9 +2,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   Environment:
     Type: String
-    Description: Deployment environment (test,production)
     AllowedValues:
       - test
+      - demo
       - production
     Default: test
 Resources:
@@ -39,6 +39,19 @@ Resources:
           HttpMethod: "*"
           CachingEnabled: false
 
+  ApiGatewayStageDemo:
+    Type: "AWS::ApiGateway::Stage"
+    Properties:
+      StageName: "demo"
+      RestApiId:
+        Ref: "ApiGatewayRestApi"
+      DeploymentId:
+        Ref: "ApiGatewayDeployment"
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          CachingEnabled: false
+
   ApiGatewayStageProduction:
     Type: "AWS::ApiGateway::Stage"
     Properties:
@@ -54,10 +67,13 @@ Resources:
 
   ApiGatewayDeployment:
     Type: "AWS::ApiGateway::Deployment"
+    DependsOn:
+      - "ApiGatewayMethodOptions"
+      - "ApiGatewayMethodAny"
     Properties:
       RestApiId:
         Ref: "ApiGatewayRestApi"
-      StageName: "dummy" # This is required but will be overridden by the actual stages
+      StageName: "base"
 
   ApiGatewayMethodOptions:
     Type: "AWS::ApiGateway::Method"
@@ -88,8 +104,8 @@ Resources:
   ApiGatewayMethodAny:
     Type: "AWS::ApiGateway::Method"
     Properties:
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ApiGatewayAuthorizer
+      AuthorizationType: "NONE"
+      # AuthorizerId: !Ref ApiGatewayAuthorizer
       HttpMethod: "ANY"
       ResourceId:
         Ref: "ApiGatewayResource"
@@ -103,12 +119,6 @@ Resources:
         RequestParameters:
           integration.request.path.proxy: "method.request.path.proxy"
         Uri: http://44.201.115.167:3000/{proxy}
-        # IntegrationResponses:
-        #   - StatusCode: "200"
-        #     ResponseParameters:
-        #       method.response.header.Access-Control-Allow-Origin: "'*'"
-        #       method.response.header.Access-Control-Allow-Methods: "'GET, POST, PUT, DELETE, OPTIONS'"
-        #       method.response.header.Access-Control-Allow-Headers: "'Content-Type, Authorization'"
       MethodResponses:
         - StatusCode: "200"
           ResponseParameters:
@@ -121,7 +131,7 @@ Resources:
     Properties:
       Name: "CognitoAuthorizer"
       Type: "COGNITO_USER_POOLS"
-      IdentitySource: "method.request.header.Authorization"
+      IdentitySource: "method.request.header.authorization"
       RestApiId:
         Ref: "ApiGatewayRestApi"
       ProviderARNs:

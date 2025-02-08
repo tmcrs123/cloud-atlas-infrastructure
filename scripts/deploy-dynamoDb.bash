@@ -1,15 +1,17 @@
 #!/bin/bash
 
-read -p "Enter environment (test/production) [test]: " ENVIRONMENT
+ENVIRONMENT="${1:-test}"
 
-ENVIRONMENT=${ENVIRONMENT:-test}
+echo "Deploying DynamoDb"
 
-STACK_NAME="snappin-${ENVIRONMENT}-dynamoDb"
+STACK_NAME="cloud-atlas-${ENVIRONMENT}-dynamoDb"
 
-aws cloudformation validate-template --template-body file://./dynamo-db/template.yaml
+aws cloudformation validate-template --template-body file://../dynamo-db/template.yaml
 
 aws cloudformation deploy \
-  --template-file ./dynamo-db/template.yaml \
+  --template-file ../dynamo-db/template.yaml \
   --stack-name "$STACK_NAME" \
-  --parameter-overrides file://parameters.json \
+  --parameter-overrides file://../parameters.json \
   --capabilities CAPABILITY_NAMED_IAM
+
+echo "Finished deploying DynamoDb"

@@ -1,15 +1,16 @@
 #!/bin/bash
 
-read -p "Enter environment (test/production) [test]: " ENVIRONMENT
+ENVIRONMENT="${1:-test}"
+STACK_NAME="cloud-atlas-${ENVIRONMENT}-ecs"
 
-ENVIRONMENT=${ENVIRONMENT:-test}
+echo "Deploying ECS"
 
-STACK_NAME="snappin-${ENVIRONMENT}-ecs"
-
-aws cloudformation validate-template --template-body file://./ecs/template.yaml
+aws cloudformation validate-template --template-body file://../ecs/template.yaml
 
 aws cloudformation deploy \
-  --template-file ./ecs/template.yaml \
+  --template-file ../ecs/template.yaml \
   --stack-name "$STACK_NAME" \
-  --parameter-overrides file://parameters.json \
+  --parameter-overrides file://../parameters.json \
   --capabilities CAPABILITY_NAMED_IAM
+
+echo "Finished deploying ECS"

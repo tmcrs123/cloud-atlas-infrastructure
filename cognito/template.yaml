@@ -2,16 +2,16 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   Environment:
     Type: String
-    Description: Deployment environment (test,production)
     AllowedValues:
       - test
+      - demo
       - production
     Default: test
 Resources:
   CognitoUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: !Sub "snappin-${Environment}-user-pool"
+      UserPoolName: !Sub "cloud-atlas-${Environment}-user-pool"
       AutoVerifiedAttributes:
         - email
       Policies:
@@ -40,7 +40,7 @@ Resources:
   CognitoUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
-      ClientName: !Sub "snappin-${Environment}-user-pool-client"
+      ClientName: !Sub "cloud-atlas-${Environment}-user-pool-client"
       UserPoolId: !Ref CognitoUserPool
       SupportedIdentityProviders:
         - COGNITO
@@ -56,24 +56,31 @@ Resources:
       AllowedOAuthScopes:
         - openid
       CallbackURLs:
-        - "http://localhost:4200"
+        - "http://localhost:4200/redirect"
+        - !Sub https://cloud-atlas-${Environment}/redirect
       LogoutURLs:
         - "http://localhost:4200"
+        - !Sub https://cloud-atlas-${Environment}
 
   CognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
-      Domain: !Sub snappin-${Environment}
+      Domain: !Sub cloud-atlas-${Environment}
       UserPoolId: !Ref CognitoUserPool
 
 Outputs:
+  ClientId:
+    Description: The client Id
+    Value: !Ref CognitoUserPoolClient
+    Export:
+      Name: !Sub "cloud-atlas-${Environment}-cognito-user-pool-client-id"
   UserPoolId:
     Description: The ID of the Cognito User Pool
     Value: !Ref CognitoUserPool
     Export:
-      Name: !Sub "snappin-${Environment}-cognito-user-pool-id"
+      Name: !Sub "cloud-atlas-${Environment}-cognito-user-pool-id"
   JsonPublicKeyURI:
     Description: The ID of the Cognito User Pool
     Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}/.well-known/jwks.json"
     Export:
-      Name: !Sub "snappin-${Environment}-well-know-jwts"
+      Name: !Sub "cloud-atlas-${Environment}-well-know-jwts"

@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  ##### Lambdas bucket
+  LambdasBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "cloud-atlas-lambdas"
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+
+  ######### ECR
+  ECRRepository:
+    Type: "AWS::ECR::Repository"
+    Properties:
+      RepositoryName: "cloud-atlas-api"
+      ImageTagMutability: MUTABLE

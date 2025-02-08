@@ -2,26 +2,24 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   Environment:
     Type: String
-    Description: Deployment environment (test,prod)
     AllowedValues:
       - test
+      - demo
       - production
     Default: test
 Resources:
   BucketEventsTopic:
     Type: "AWS::SNS::Topic"
     Properties:
-      DisplayName: !Sub "snappin-${Environment}-bucket-events-topic"
-      TopicName: !Sub "snappin-${Environment}-bucket-events-topic"
+      DisplayName: !Sub "cloud-atlas-${Environment}-bucket-events-topic"
+      TopicName: !Sub "cloud-atlas-${Environment}-bucket-events-topic"
 
   BucketEventsTopicSubscription:
     Type: "AWS::SNS::Subscription"
     Properties:
       TopicArn: !Ref BucketEventsTopic
       Protocol: lambda
-      Endpoint: !Join
-        - ""
-        - - Fn::ImportValue: !Sub "snappin-${Environment}-message-handler-lambda-arn"
+      Endpoint: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:cloud-atlas-${Environment}-message-handler
 
   BucketEventsTopicPolicy:
     Type: "AWS::SNS::TopicPolicy"
@@ -41,12 +39,12 @@ Resources:
                 Aws:SourceAccount: !Sub "${AWS::AccountId}"
 Outputs:
   BucketsEventsTopicName:
-    Description: "The name of the Snappin buckets events topic"
+    Description: "The name of the cloud-atlas buckets events topic"
     Value: !GetAtt BucketEventsTopic.TopicName
     Export:
-      Name: !Sub "snappin-${Environment}-bucket-events-name"
+      Name: !Sub "cloud-atlas-${Environment}-bucket-events-name"
   BucketsEventsTopicArn:
-    Description: "The ARN of the Snappin buckets events topic"
+    Description: "The ARN of the cloud-atlas buckets events topic"
     Value: !GetAtt BucketEventsTopic.TopicArn
     Export:
-      Name: !Sub "snappin-${Environment}-bucket-events-topic-arn"
+      Name: !Sub "cloud-atlas-${Environment}-bucket-events-topic-arn"
