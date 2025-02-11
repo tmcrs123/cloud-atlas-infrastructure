@@ -1,17 +1,181 @@
-AWSTemplateFormatVersion: "2010-09-09"
+AWSTemplateFormatVersion: 2010-09-09
+Description: Updated stack to trigger changes on redeployment
+Parameters:
+  Environment:
+    Type: String
+    Default: test
 Resources:
   ##### Lambdas bucket
   LambdasBucket:
-    Type: "AWS::S3::Bucket"
+    Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "cloud-atlas-lambdas"
+      BucketName: !Sub cloud-atlas-lambdas
       AccessControl: Private
       VersioningConfiguration:
         Status: Enabled
 
   ######### ECR
   ECRRepository:
-    Type: "AWS::ECR::Repository"
+    Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: "cloud-atlas-api"
+      RepositoryName: cloud-atlas-api
       ImageTagMutability: MUTABLE
+
+  ######### UI Build Project
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: CodeBuildServiceRole
+      Description: This is the role assumed by the Cloud Atlas UI build project
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceArn: !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/cloud-atlas-ui
+      Policies:
+        - PolicyName: buildPolicyLogs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: buildPolicyLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:CreateLogGroup
+                  - logs:PutLogEvents
+                Resource: "*"
+        - PolicyName: buildPolicySSM
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: buildPolicySSM
+                Effect: Allow
+                Action:
+                  - ssm:GetParameters
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-environment-name-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-app-name-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-api-endpoint-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-authority-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-auth-well-know-endpoint-url-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-redirect-url-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-post-logout-redirect-uri-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-clientid-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-renew-time-before-token-expires-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-region-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-user-pool-id-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-max-image-file-size-in-bytes-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-google-map-id-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-google-maps-api-key-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-id-token-expiration-in-miliseconds-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-logout-uri-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-maps-limit-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-markers-limit-parameter
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/cloud-atlas-${Environment}-images-limit-parameter
+        - PolicyName: buildPolicyS3
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: buildPolicyS3
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub arn:aws:s3:::cloud-atlas-${Environment}-ui
+                  - !Sub arn:aws:s3:::cloud-atlas-${Environment}-ui/*
+        - PolicyName: buildPolicyCodeCommit
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: buildPolicyCodeCommit
+                Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GetRepository
+                Resource: !Sub arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:cloud-atlas-ui
+
+  UIBuildProject:
+    Type: AWS::CodeBuild::Project
+    # DependsOn: CodeBuildServiceRole
+    Properties:
+      Name: cloud-atlas-ui
+      ServiceRole: !Sub arn:aws:iam::${AWS::AccountId}:role/CodeBuildServiceRole
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - Name: environmentName
+            Value: !Sub cloud-atlas-${Environment}-environment-name-parameter
+            Type: PARAMETER_STORE
+          - Name: appName
+            Value: !Sub cloud-atlas-${Environment}-app-name-parameter
+            Type: PARAMETER_STORE
+          - Name: api_endpoint
+            Value: !Sub cloud-atlas-${Environment}-api-endpoint-parameter
+            Type: PARAMETER_STORE
+          - Name: authority
+            Value: !Sub cloud-atlas-${Environment}-authority-parameter
+            Type: PARAMETER_STORE
+          - Name: authWellknownEndpointUrl
+            Value: !Sub cloud-atlas-${Environment}-auth-well-know-endpoint-url-parameter
+            Type: PARAMETER_STORE
+          - Name: redirectUrl
+            Value: !Sub cloud-atlas-${Environment}-redirect-url-parameter
+            Type: PARAMETER_STORE
+          - Name: postLogoutRedirectUri
+            Value: !Sub cloud-atlas-${Environment}-post-logout-redirect-uri-parameter
+            Type: PARAMETER_STORE
+          - Name: clientId
+            Value: !Sub cloud-atlas-${Environment}-clientid-parameter
+            Type: PARAMETER_STORE
+          - Name: renewTimeBeforeTokenExpiresInSeconds
+            Value: !Sub cloud-atlas-${Environment}-renew-time-before-token-expires-parameter
+            Type: PARAMETER_STORE
+          - Name: region
+            Value: !Sub cloud-atlas-${Environment}-region-parameter
+            Type: PARAMETER_STORE
+          - Name: userPoolId
+            Value: !Sub cloud-atlas-${Environment}-user-pool-id-parameter
+            Type: PARAMETER_STORE
+          - Name: maxImageFileSizeInBytes
+            Value: !Sub cloud-atlas-${Environment}-max-image-file-size-in-bytes-parameter
+            Type: PARAMETER_STORE
+          - Name: googleMapId
+            Value: !Sub cloud-atlas-${Environment}-google-map-id-parameter
+            Type: PARAMETER_STORE
+          - Name: googleMapsApiKey
+            Value: !Sub cloud-atlas-${Environment}-google-maps-api-key-parameter
+            Type: PARAMETER_STORE
+          - Name: idTokenExpirationInMiliseconds
+            Value: !Sub cloud-atlas-${Environment}-id-token-expiration-in-miliseconds-parameter
+            Type: PARAMETER_STORE
+          - Name: logoutUri
+            Value: !Sub cloud-atlas-${Environment}-logout-uri-parameter
+            Type: PARAMETER_STORE
+          - Name: mapsLimit
+            Value: !Sub cloud-atlas-${Environment}-maps-limit-parameter
+            Type: PARAMETER_STORE
+          - Name: markersLimit
+            Value: !Sub cloud-atlas-${Environment}-markers-limit-parameter
+            Type: PARAMETER_STORE
+          - Name: imagesLimit
+            Value: !Sub cloud-atlas-${Environment}-images-limit-parameter
+            Type: PARAMETER_STORE
+      Source:
+        BuildSpec: yaml/code-build/buildspec-ui.yaml
+        Location: https://git-codecommit.us-east-1.amazonaws.com/v1/repos/cloud-atlas-ui
+        Type: CODECOMMIT

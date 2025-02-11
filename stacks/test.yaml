@@ -10,6 +10,8 @@ Parameters:
     Type: String
   StopServiceLambdaS3ObjectVersion:
     Type: String
+  CreateInvalidationLambdaS3ObjectVersion:
+    Type: String
 Mappings:
   # Hard values for the subnet masks. These masks define
   # the range of internal IP addresses that can be assigned.
@@ -215,6 +217,45 @@ Resources:
         WriteCapacityUnits: 2
 
   # ################################### CLOUDFRONT
+  UICloudfrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultRootObject: index.html
+        Origins:
+          - DomainName:
+              !Join [
+                "",
+                [
+                  !Sub "cloud-atlas-${Environment}-ui",
+                  ".s3.",
+                  !Sub "${AWS::Region}",
+                  ".amazonaws.com",
+                ],
+              ]
+            Id: !Sub "cloud-atlas-${Environment}-ui"
+            OriginAccessControlId: !GetAtt CloudfrontDistributionOriginAccessControl.Id
+            S3OriginConfig: {}
+        Enabled: "true"
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          TargetOriginId: !Sub "cloud-atlas-${Environment}-ui"
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # CachingOptimized
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf # CORS-S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ErrorCachingMinTTL: 10
+            ResponsePagePath: /index.html
+          - ErrorCode: 403
+            ResponseCode: 200
+            ErrorCachingMinTTL: 10
+            ResponsePagePath: /index.html
+
   OptimizedPhotosCloudfrontDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -248,7 +289,7 @@ Resources:
       FunctionCode: !Sub |
         function handler(event) {
           const refererHeader = event.request.headers['referer'] 
-          if(refererHeader.value.includes('http://localhost:4200/') || refererHeader.value.includes('https://uidistributiondomainname.com') ){
+          if(refererHeader.value.includes('http://localhost:4200/') || refererHeader.value.includes('https://${UICloudfrontDistribution.DomainName}.com') ){
             return event.request;
           } else {
             return {
@@ -276,13 +317,13 @@ Resources:
         CallerReference: !Sub T1TTTt07XlT${Environment} ##just needs to be a random string, this has no meaning
         EncodedKey: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArSGQx/uYczmdsIGef56H
-          gzBw3BAYiWyFkop4Fd8sn6SKXiNvBhqgpCicA8QD6QZcuYuGE/KDKPsTe9x5CW0d
-          PqpoqK1QtQmh88ae9WGsLvrNChA64t4mxa4VaLDUAjP50ujPg6ShCIBQ8JlnGNZH
-          L+t+PomQhbbI0klqrGnhHxknYcNDD0s0SHISJM15L3hJYs4PqG/8tT7yONZ99STe
-          8opZHel71CbjfRUKFdkZ5RnaNvUt7RCx9RhZhn1Pp4sguOX0VSISZtTk95lB4IYr
-          EKrJEKR3pk4ps0zH3k31GmXnXNB9p3v57nsbCzuyMEFzgYcjYYzK/v8e1Z7v5cZi
-          3QIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2kkJUeBZWvrSoPrxRZ/D
+          e3gUX9decGgyVul6xI4WxSqOzbVxJ1VSlNXOw9MuGKR15m+XjNHjl5rYsmvDYmnK
+          5yhZyNqDoxZ5TzeCnKGBMY3jnXG52LCm4hqLdD34+Dhets/MzyUu/zm8V10T6+yb
+          BJVuEfIt5vNUWrPFYaEFap7XSvtJcF1PeQEb0CB3YOObJXfQpO5ZkbMQh7pH0MKG
+          93woOGUxyCZ6FG86ASak2nKoqiKcaHvv3E0Kyo4dBcRaylP2tvKIJ6vcXK/IhBml
+          b6FcQpg0r99QCUN2D+YNPWOwBIKWevm08/DJjKg7NsHgTT2MeuKgeznyRObhDAFb
+          GQIDAQAB
           -----END PUBLIC KEY-----
         Name: !Sub cloud-atlas-${Environment}-optimized-photos-public-key
 
@@ -345,10 +386,10 @@ Resources:
         - openid
       CallbackURLs:
         - "http://localhost:4200/redirect"
-        - !Sub https://cloud-atlas-${Environment}/redirect
+        - !Sub https://${UICloudfrontDistribution.DomainName}/redirect
       LogoutURLs:
         - "http://localhost:4200"
-        - !Sub https://cloud-atlas-${Environment}
+        - !Sub https://${UICloudfrontDistribution.DomainName}
 
   CognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -456,6 +497,44 @@ Resources:
                     - !Sub ${AWS::AccountId}
                     - ":distribution/"
                     - !Ref OptimizedPhotosCloudfrontDistribution
+
+  UIBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub cloud-atlas-${Environment}-ui
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Function: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:cloud-atlas-${Environment}-create-cloudfront-invalidation
+
+  UIBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: UIBucket
+    Properties:
+      Bucket: !Sub cloud-atlas-${Environment}-ui
+      PolicyDocument:
+        Id: PolicyForCloudFrontPrivateContent
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::cloud-atlas-${Environment}-ui/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Join
+                  - ""
+                  - - "arn:aws:cloudfront::"
+                    - !Sub ${AWS::AccountId}
+                    - ":distribution/"
+                    - !Ref UICloudfrontDistribution
 
   # ############################################## LAMBDA
   ProcessImageFunction:
@@ -586,12 +665,12 @@ Resources:
                   - !Sub "arn:aws:s3:::cloud-atlas-${Environment}-optimized/*"
                   - !Sub "arn:aws:s3:::cloud-atlas-${Environment}-dump/*"
 
-  StopServiceFunction:
+  StopStartServiceFunction:
     Type: "AWS::Lambda::Function"
     Properties:
       FunctionName: !Sub "cloud-atlas-${Environment}-stop-service"
       Handler: index.handler
-      Role: !GetAtt StopServiceRole.Arn
+      Role: !GetAtt StopStartServiceRole.Arn
       Runtime: nodejs18.x
       Code:
         S3Bucket: cloud-atlas-lambdas
@@ -605,7 +684,7 @@ Resources:
         - Key: Name
           Value: !Sub "cloud-atlas-${Environment}-stop-service"
 
-  StopServiceRole:
+  StopStartServiceRole:
     Type: "AWS::IAM::Role"
     Properties:
       AssumeRolePolicyDocument:
@@ -627,6 +706,67 @@ Resources:
                   - ecs:UpdateService
                 Resource: !Ref ECSService
 
+  StopStartFunctionInvokePermissionForStop:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref StopStartServiceFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt StopServiceScheduledRule.Arn
+
+  StopStartFunctionInvokePermissionForStart:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref StopStartServiceFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt StartServiceScheduledRule.Arn
+
+  CreateCloudfrontInvalidationFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: !Sub "cloud-atlas-${Environment}-create-cloudfront-invalidation"
+      Handler: index.handler
+      Role: !GetAtt StopStartServiceRole.Arn
+      Runtime: nodejs18.x
+      Code:
+        S3Bucket: cloud-atlas-lambdas
+        S3Key: create-invalidation.zip
+        S3ObjectVersion: !Sub ${CreateInvalidationLambdaS3ObjectVersion}
+      Environment:
+        Variables:
+          DISTRIBUTION_ID: !Ref UICloudfrontDistribution
+      Tags:
+        - Key: Name
+          Value: !Sub "cloud-atlas-${Environment}-stop-service"
+
+  CreateCloudfrontInvalidationRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CreateInvalidation
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                Resource: !Join
+                  - ""
+                  - - "arn:aws:cloudfront::"
+                    - !Sub ${AWS::AccountId}
+                    - ":distribution/"
+                    - !Ref UICloudfrontDistribution
+
   ################################### EVENT Bridge
   ScheduledRuleRole:
     Type: "AWS::IAM::Role"
@@ -646,7 +786,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - lambda:InvokeFunction
-                Resource: !GetAtt StopServiceFunction.Arn
+                Resource: !GetAtt StopStartServiceFunction.Arn
 
   StopServiceScheduledRule:
     Type: AWS::Events::Rule
@@ -658,7 +798,7 @@ Resources:
       Targets:
         - Arn:
             Fn::GetAtt:
-              - "StopServiceFunction"
+              - "StopStartServiceFunction"
               - "Arn"
           Id: stopServiceFn
           Input: '{"start": false}'
@@ -673,7 +813,7 @@ Resources:
       Targets:
         - Arn:
             Fn::GetAtt:
-              - "StopServiceFunction"
+              - "StopStartServiceFunction"
               - "Arn"
           Id: stopServiceFn
           Input: '{"start": true}'
@@ -722,18 +862,6 @@ Resources:
     Properties:
       Name: cloud-atlas-api
       ProtocolType: HTTP
-      # CorsConfiguration:
-      #   AllowOrigins:
-      #     - "*"
-      #   AllowMethods:
-      #     - "*"
-      #   AllowHeaders:
-      #     - "customauthheader"
-      #   ExposeHeaders:
-      #     - access-control-allow-origin
-      #     - access-control-allow-methods
-      #     - access-control-allow-headers
-      #   MaxAge: 86400
 
   HttpApiRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -975,3 +1103,135 @@ Resources:
                   - !Sub secretsmanager:GetSecretValue
                 Resource:
                   - !Ref CloudfrontPrivateKey
+  ######################### Parameters Store
+  EnvironmentNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-environment-name-parameter
+      Type: String
+      Value: !Sub ${Environment}
+  AppNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-appName-parameter
+      Type: String
+      Value: !Sub cloud-atlas-${Environment}
+  ApiEndpointParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-api-endpoint-parameter
+      Type: String
+      Value: !GetAtt HttpApi.ApiEndpoint
+  AuthorityParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-authority-parameter
+      Type: String
+      Value: !Join
+        - ""
+        - - https://cognito-idp.us-east-1.amazonaws.com
+          - !Ref CognitoUserPool
+  AuthWellknownEndpointUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-auth-well-known-endpoint-url-parameter
+      Type: String
+      Value: !Join
+        - ""
+        - - https://cognito-idp.us-east-1.amazonaws.com
+          - !Ref CognitoUserPool
+  RedirectUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-redirect-url-parameter
+      Type: String
+      Value: !Join
+        - ""
+        - - "https://"
+          - !GetAtt UICloudfrontDistribution.DomainName
+          - "/redirect"
+  PostLogoutRedirectUriParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-post-logout-redirect-uri-parameter
+      Type: String
+      Value: !Join
+        - ""
+        - - "https://"
+          - !GetAtt UICloudfrontDistribution.DomainName
+          - "/redirect"
+  ClientIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-clientid-parameter
+      Type: String
+      Value: !Ref CognitoUserPoolClient
+  RenewTimeBeforeTokenExpiresInSecondsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-renew-time-before-toke-expires-in-seconds-parameter
+      Type: String
+      Value: 30
+  RegionParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-region-parameter
+      Type: String
+      Value: !Sub ${AWS::Region}
+  UserPoolIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-user-pool-id-parameter
+      Type: String
+      Value: !Ref CognitoUserPool
+  MaxImageFileSizeInBytesParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-max-image-file-size-in-bytes-parameter
+      Type: String
+      Value: 15728640
+  GoogleMapIdParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-google-map-id-parameter
+      Type: String
+      Value: 6b0e9677f8a58360
+  GoogleMapsApiKeyParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-google-maps-api-key-parameter
+      Type: String
+      Value: AIzaSyCymGXjavlTc6D5maGwEqUXZKYCO6kiGxw
+  IdTokenExpirationInMilisecondsParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-id-token-expiration-in-miliseconds-parameter
+      Type: String
+      Value: 86400000
+  LogoutUriParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-logout-uri-parameter
+      Type: String
+      Value: !Join
+        - ""
+        - - "https://"
+          - !GetAtt UICloudfrontDistribution.DomainName
+  MapsLimitParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-maps-limit-parameter
+      Type: String
+      Value: 25
+  MarkersLimitParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-markers-limit-parameter
+      Type: String
+      Value: 25
+  ImagesLimitParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-images-limit-parameter
+      Type: String
+      Value: 25
