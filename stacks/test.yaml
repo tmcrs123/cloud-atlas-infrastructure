@@ -317,13 +317,13 @@ Resources:
         CallerReference: !Sub T1TTTt07XlT${Environment} ##just needs to be a random string, this has no meaning
         EncodedKey: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2kkJUeBZWvrSoPrxRZ/D
-          e3gUX9decGgyVul6xI4WxSqOzbVxJ1VSlNXOw9MuGKR15m+XjNHjl5rYsmvDYmnK
-          5yhZyNqDoxZ5TzeCnKGBMY3jnXG52LCm4hqLdD34+Dhets/MzyUu/zm8V10T6+yb
-          BJVuEfIt5vNUWrPFYaEFap7XSvtJcF1PeQEb0CB3YOObJXfQpO5ZkbMQh7pH0MKG
-          93woOGUxyCZ6FG86ASak2nKoqiKcaHvv3E0Kyo4dBcRaylP2tvKIJ6vcXK/IhBml
-          b6FcQpg0r99QCUN2D+YNPWOwBIKWevm08/DJjKg7NsHgTT2MeuKgeznyRObhDAFb
-          GQIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo88mkSZ4ITyCsku+RjRl
+          PSS1PWI16tnpkezkHY+j6oZFwAX4x9q63Ul0GlePdFgR5DiM+yFakw2RPBofS799
+          gaGBGkfWJOBxj6Y1UeBdULoRAlgv3vqL6MFF07H4FUfx/DozQ9LE15iE0pXtsnGq
+          p2YZG3SWtPeRTsGi4upnPXeHqbncwGerS/CUK7iTYrKYvXfVI6NNTrOJJBltn0Mq
+          veBU+8TXCaR/bghcN04ZYYtIyoK9h0UL/2IY16AgB4pLHz6ifxdO5sc1SgLBKV+/
+          Hz8ms0cgKaq9tfEhjzZk7xnOGiVWLDw9xqlGdviHVFuJW14xFrfZyDM5UNjTZPF2
+          FQIDAQAB
           -----END PUBLIC KEY-----
         Name: !Sub cloud-atlas-${Environment}-optimized-photos-public-key
 
@@ -500,6 +500,7 @@ Resources:
 
   UIBucket:
     Type: AWS::S3::Bucket
+    DependsOn: CreateCloudfrontInvalidationInvokePermission
     Properties:
       BucketName: !Sub cloud-atlas-${Environment}-ui
       PublicAccessBlockConfiguration:
@@ -511,7 +512,6 @@ Resources:
         LambdaConfigurations:
           - Event: "s3:ObjectCreated:*"
             Function: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:cloud-atlas-${Environment}-create-cloudfront-invalidation
-
   UIBucketPolicy:
     Type: AWS::S3::BucketPolicy
     DependsOn: UIBucket
@@ -535,6 +535,12 @@ Resources:
                     - !Sub ${AWS::AccountId}
                     - ":distribution/"
                     - !Ref UICloudfrontDistribution
+          - Sid: AllowBucketToCallLambda
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: lambda:InvokeFunction
+            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:cloud-atlas-${Environment}-create-cloudfront-invalidation
 
   # ############################################## LAMBDA
   ProcessImageFunction:
@@ -727,7 +733,7 @@ Resources:
     Properties:
       FunctionName: !Sub "cloud-atlas-${Environment}-create-cloudfront-invalidation"
       Handler: index.handler
-      Role: !GetAtt StopStartServiceRole.Arn
+      Role: !GetAtt CreateCloudfrontInvalidationRole.Arn
       Runtime: nodejs18.x
       Code:
         S3Bucket: cloud-atlas-lambdas
@@ -738,7 +744,17 @@ Resources:
           DISTRIBUTION_ID: !Ref UICloudfrontDistribution
       Tags:
         - Key: Name
-          Value: !Sub "cloud-atlas-${Environment}-stop-service"
+          Value: !Sub "cloud-atlas-${Environment}-create-cloudfront-invalidation"
+
+  CreateCloudfrontInvalidationInvokePermission:
+    Type: AWS::Lambda::Permission
+    DependsOn: CreateCloudfrontInvalidationFunction
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:cloud-atlas-${Environment}-create-cloudfront-invalidation
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:aws:s3:::cloud-atlas-${Environment}-ui
 
   CreateCloudfrontInvalidationRole:
     Type: "AWS::IAM::Role"
