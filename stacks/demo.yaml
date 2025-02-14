@@ -2,8 +2,8 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   Environment:
     Type: String
-    Description: Deployment of cloud atlas test
-    Default: test
+    Description: Deployment of cloud atlas demo
+    Default: demo
   MessageHandlerLambdaS3ObjectVersion:
     Type: String
   ProcessImageLambdaS3ObjectVersion:
@@ -255,6 +255,13 @@ Resources:
             ResponseCode: 200
             ErrorCachingMinTTL: 10
             ResponsePagePath: /index.html
+        Aliases:
+          - demo.cloud-atlas.net
+          - www.demo.cloud-atlas.net
+        ViewerCertificate:
+          AcmCertificateArn: arn:aws:acm:us-east-1:891376964515:certificate/e0f5ed31-2ed9-41a3-8701-7be09cb4fa18
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
 
   OptimizedPhotosCloudfrontDistribution:
     Type: AWS::CloudFront::Distribution
@@ -289,7 +296,7 @@ Resources:
       FunctionCode: !Sub |
         function handler(event) {
           const refererHeader = event.request.headers['referer'] 
-          if(refererHeader.value.includes('http://localhost:4200/') || refererHeader.value.includes('https://${UICloudfrontDistribution.DomainName}') ){
+          if(refererHeader.value.includes('https://demo.cloud-atlas.net') || refererHeader.value.includes('https://demo.cloud-atlas.net') || refererHeader.value.includes('https://www.demo.cloud-atlas.net')  ){
             return event.request;
           } else {
             return {
@@ -317,13 +324,13 @@ Resources:
         CallerReference: !Sub T1TTTt07XlT${Environment} ##just needs to be a random string, this has no meaning
         EncodedKey: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAheJBSvwVJiybGR0ZtvO9
-          Bq36XOn7juXupYLJ96iqhulRa2X21k4UOrsvXFDGrRej8rMZxBaeoy56kE/tEvSM
-          3osiXjhyLbUOVhZJ3Uq/xzi8JCPpcMJQPGTrnrOzP7ywEWm6HR1lYv7H/wykn5pz
-          FHN538SMOlVs/LBjUTirb8HqzH9R3sq9cQtwTyG+IqpVRrjDwQPtAnm0XsgjwCsx
-          0AhmNoPFwGgkTdCxMEUHaBiVzfY76dsU/Oab4diIKYDWLwTovJWh6nJgbCmwdr1J
-          Dcvt4NxexM53UuGtHzb8kj11IlKjgNQDlCeTtddPooJdpjUIsa5rbR/tTzjMUw/g
-          RQIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzvC4ey6pDF/1XE/ikjKW
+          lLxwE6WArDJYYMY4OaA05mzAoQFTpq+duIga6+lh2uIexP+nwpL0iVjLPIV8xUZt
+          nbjg347xRorinTj7iYmZuwAi+L1w1cmFCY1PokSCr0RpCO/0StKH3F2CR9GE4RnU
+          7pDNj+uOG6Ytz0YeVYzzVubls88GH5hiW/muyh8z2LW2VehZjS+9SyGchq+T3KMp
+          RN5wadoRqPNKpqufOqUtr5bsEG4zSUmSwTRxPgnHqk37pegicLdx4NbYkCFG6cMs
+          Wd+/D3aKH0JCAtdroueOJFcjlm6tW9+LWHLw1b+oC7b+Xvb1u5nBzx67qza2IJbF
+          UwIDAQAB
           -----END PUBLIC KEY-----
 
         Name: !Sub cloud-atlas-${Environment}-optimized-photos-public-key
@@ -386,11 +393,9 @@ Resources:
       AllowedOAuthScopes:
         - openid
       CallbackURLs:
-        - "http://localhost:4200/redirect"
-        - !Sub https://${UICloudfrontDistribution.DomainName}/redirect
+        - !Sub https://demo.cloud-atlas.net/redirect
       LogoutURLs:
-        - "http://localhost:4200"
-        - !Sub https://${UICloudfrontDistribution.DomainName}
+        - !Sub https://demo.cloud-atlas.net
 
   CognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -853,7 +858,7 @@ Resources:
         FailureThreshold: 1
       Name: !Sub cloud.atlas.${Environment}
 
-  ############ CLOUDWATCH
+    # ######### CLOUDWATCH
   ApplicationLogGroup:
     Type: "AWS::Logs::LogGroup"
     Properties:
@@ -861,12 +866,6 @@ Resources:
       RetentionInDays: 14
 
   ###### HTTP API
-  HttpApi:
-    Type: AWS::ApiGatewayV2::Api
-    Properties:
-      Name: cloud-atlas-api
-      ProtocolType: HTTP
-
   HttpApiVPCLink:
     Type: AWS::ApiGatewayV2::VpcLink
     Properties:
@@ -878,6 +877,12 @@ Resources:
         - !Ref PublicSubnetTwo
       Tags:
         Name: !Sub cloud-atlas-${Environment}-vpc-link
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-api
+      ProtocolType: HTTP
 
   HttpApiRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -901,24 +906,24 @@ Resources:
         "overwrite:header.customauthheader": "$request.header.customauthheader"
         "overwrite:path": "$request.path"
 
-  HttpApiTestStage:
+  HttpApiDemoStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
       ApiId: !Ref HttpApi
-      StageName: test
+      StageName: demo
       AutoDeploy: true
 
   # ####### ECS
   FargateTaskDefinition:
-    Type: "AWS::ECS::TaskDefinition"
+    Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Sub "cloud-atlas-${Environment}"
       RuntimePlatform:
         CpuArchitecture: X86_64
         OperatingSystemFamily: LINUX
-      Cpu: "1024"
-      Memory: "2048"
-      NetworkMode: "awsvpc"
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
       RequiresCompatibilities:
         - "FARGATE"
       ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
@@ -961,7 +966,7 @@ Resources:
             - Name: IMAGES_TABLE_NAME
               Value: !Sub "cloud-atlas-${Environment}-images"
             - Name: LOG_LEVEL
-              Value: info
+              Value: error
             - Name: MARKERS_TABLE_NAME
               Value: !Sub "cloud-atlas-${Environment}-markers"
             - Name: OPTIMIZED_BUCKET_NAME
@@ -989,7 +994,7 @@ Resources:
             - Name: QUEUE_MAX_NUM_MESSAGES
               Value: 10
             - Name: QUEUE_POLLING_INTERVAL
-              Value: 3600
+              Value: 2000
             - Name: QUEUE_URL
               Value: !Ref OptimizedImagesQueue
             - Name: QUEUE_WAIT_TIME_SECONDS
@@ -997,7 +1002,7 @@ Resources:
             - Name: REGION
               Value: us-east-1
             - Name: REQUIRE_AUTH
-              Value: true
+              Value: false
             - Name: SUBDOMAIN
               Value: www
             - Name: TOPIC_ARN
@@ -1010,11 +1015,10 @@ Resources:
     Properties:
       ClusterName: !Sub "cloud-atlas-${Environment}"
       CapacityProviders:
-        # - FARGATE
         - FARGATE_SPOT
 
   ECSService:
-    Type: "AWS::ECS::Service"
+    Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
       DesiredCount: 1
@@ -1106,12 +1110,6 @@ Resources:
                 Resource:
                   - !Ref CloudfrontPrivateKey
   ######################### Parameters Store
-  # EnvironmentNameParameter:
-  #   Type: AWS::SSM::Parameter
-  #   Properties:
-  #     Name: !Sub cloud-atlas-${Environment}-environment-name-parameter
-  #     Type: String
-  #     Value: !Sub ${Environment}
   AppNameParameter:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1153,7 +1151,7 @@ Resources:
       Value: !Join
         - ""
         - - "https://"
-          - !GetAtt UICloudfrontDistribution.DomainName
+          - demo.cloud-atlas.net
           - "/redirect"
   PostLogoutRedirectUriParameter:
     Type: AWS::SSM::Parameter
@@ -1163,8 +1161,7 @@ Resources:
       Value: !Join
         - ""
         - - "https://"
-          - !GetAtt UICloudfrontDistribution.DomainName
-          - "/redirect"
+          - demo.cloud-atlas.net
   ClientIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1194,7 +1191,7 @@ Resources:
     Properties:
       Name: !Sub cloud-atlas-${Environment}-max-image-file-size-in-bytes-parameter
       Type: String
-      Value: 15728640
+      Value: 20971520
   GoogleMapIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1233,14 +1230,15 @@ Resources:
     Properties:
       Name: !Sub cloud-atlas-${Environment}-markers-limit-parameter
       Type: String
-      Value: 25
+      Value: 100
   ImagesLimitParameter:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub cloud-atlas-${Environment}-images-limit-parameter
       Type: String
       Value: 25
-  ############################# UI Build
+
+  #####################UI Build
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
     Properties:

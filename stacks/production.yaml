@@ -2,8 +2,8 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   Environment:
     Type: String
-    Description: Deployment of cloud atlas test
-    Default: test
+    Description: Deployment of cloud atlas production
+    Default: production
   MessageHandlerLambdaS3ObjectVersion:
     Type: String
   ProcessImageLambdaS3ObjectVersion:
@@ -255,6 +255,13 @@ Resources:
             ResponseCode: 200
             ErrorCachingMinTTL: 10
             ResponsePagePath: /index.html
+        Aliases:
+          - cloud-atlas.net
+          - www.cloud-atlas.net
+        ViewerCertificate:
+          AcmCertificateArn: arn:aws:acm:us-east-1:891376964515:certificate/9f57d34a-ddd0-4fab-9219-0d0cc7373892
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
 
   OptimizedPhotosCloudfrontDistribution:
     Type: AWS::CloudFront::Distribution
@@ -289,7 +296,7 @@ Resources:
       FunctionCode: !Sub |
         function handler(event) {
           const refererHeader = event.request.headers['referer'] 
-          if(refererHeader.value.includes('http://localhost:4200/') || refererHeader.value.includes('https://${UICloudfrontDistribution.DomainName}') ){
+          if(refererHeader.value.includes('https://cloud-atlas.net') || refererHeader.value.includes('https://www.cloud-atlas.net')  ){
             return event.request;
           } else {
             return {
@@ -314,18 +321,17 @@ Resources:
     Type: AWS::CloudFront::PublicKey
     Properties:
       PublicKeyConfig:
-        CallerReference: !Sub T1TTTt07XlT${Environment} ##just needs to be a random string, this has no meaning
+        CallerReference: !Sub T1T34BEt07XlT${Environment} ##just needs to be a random string, this has no meaning
         EncodedKey: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAheJBSvwVJiybGR0ZtvO9
-          Bq36XOn7juXupYLJ96iqhulRa2X21k4UOrsvXFDGrRej8rMZxBaeoy56kE/tEvSM
-          3osiXjhyLbUOVhZJ3Uq/xzi8JCPpcMJQPGTrnrOzP7ywEWm6HR1lYv7H/wykn5pz
-          FHN538SMOlVs/LBjUTirb8HqzH9R3sq9cQtwTyG+IqpVRrjDwQPtAnm0XsgjwCsx
-          0AhmNoPFwGgkTdCxMEUHaBiVzfY76dsU/Oab4diIKYDWLwTovJWh6nJgbCmwdr1J
-          Dcvt4NxexM53UuGtHzb8kj11IlKjgNQDlCeTtddPooJdpjUIsa5rbR/tTzjMUw/g
-          RQIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiyAgBT+tjs0qrLEtslbd
+          jIx/xSy6dl4H4teopyGQjgJe/IUBGsoPRN+suzUyqmS3VGQ9dG9lsScuZQhY9w/d
+          DriWxYHrmGvQVO7lXpZcbjLtKSX8H4QEhxQixHfJFAMdSjekDwPGWPo04mqbDttJ
+          kmxGalvjI94EUoaO/sUZXAV2cRzBWdKC1jPFtLi+VlJVw3DPBINcJ6N625qSDuDi
+          MXEmqGJONDOsc4Ulc6lnOMwuGhxc6lOBXYui8jtldiUtXL0C/wCuCiE6pL/m0J+v
+          pQA/M5HAAzSCbJwhw6NzCgDecWflzw3l+al8ffcVwpLMQNfX+A0P1+U2d0F02qjV
+          5QIDAQAB
           -----END PUBLIC KEY-----
-
         Name: !Sub cloud-atlas-${Environment}-optimized-photos-public-key
 
   CloudfrontDistributionOriginAccessControl:
@@ -386,11 +392,9 @@ Resources:
       AllowedOAuthScopes:
         - openid
       CallbackURLs:
-        - "http://localhost:4200/redirect"
-        - !Sub https://${UICloudfrontDistribution.DomainName}/redirect
+        - !Sub https://cloud-atlas.net/redirect
       LogoutURLs:
-        - "http://localhost:4200"
-        - !Sub https://${UICloudfrontDistribution.DomainName}
+        - !Sub https://cloud-atlas.net
 
   CognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -547,7 +551,7 @@ Resources:
     Type: "AWS::Lambda::Function"
     Properties:
       FunctionName: !Sub "cloud-atlas-${Environment}-process-image"
-      MemorySize: 256
+      MemorySize: 1024
       Handler: index.handler
       Role: !GetAtt ProcessImageRole.Arn
       Runtime: nodejs18.x
@@ -671,62 +675,62 @@ Resources:
                   - !Sub "arn:aws:s3:::cloud-atlas-${Environment}-optimized/*"
                   - !Sub "arn:aws:s3:::cloud-atlas-${Environment}-dump/*"
 
-  StopStartServiceFunction:
-    Type: "AWS::Lambda::Function"
-    Properties:
-      FunctionName: !Sub "cloud-atlas-${Environment}-stop-service"
-      Handler: index.handler
-      Role: !GetAtt StopStartServiceRole.Arn
-      Runtime: nodejs18.x
-      Code:
-        S3Bucket: cloud-atlas-lambdas
-        S3Key: stop-service.zip
-        S3ObjectVersion: !Sub ${StopServiceLambdaS3ObjectVersion}
-      Environment:
-        Variables:
-          SERVICE_NAME: !GetAtt ECSService.Name
-          CLUSTER_NAME: !Sub cloud-atlas-${Environment}
-      Tags:
-        - Key: Name
-          Value: !Sub "cloud-atlas-${Environment}-stop-service"
+  # StopStartServiceFunction:
+  #   Type: "AWS::Lambda::Function"
+  #   Properties:
+  #     FunctionName: !Sub "cloud-atlas-${Environment}-stop-service"
+  #     Handler: index.handler
+  #     Role: !GetAtt StopStartServiceRole.Arn
+  #     Runtime: nodejs18.x
+  #     Code:
+  #       S3Bucket: cloud-atlas-lambdas
+  #       S3Key: stop-service.zip
+  #       S3ObjectVersion: !Sub ${StopServiceLambdaS3ObjectVersion}
+  #     Environment:
+  #       Variables:
+  #         SERVICE_NAME: !GetAtt ECSService.Name
+  #         CLUSTER_NAME: !Sub cloud-atlas-${Environment}
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub "cloud-atlas-${Environment}-stop-service"
 
-  StopStartServiceRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: ECSUpdateService
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:UpdateService
-                Resource: !Ref ECSService
+  # StopStartServiceRole:
+  #   Type: "AWS::IAM::Role"
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  #     Policies:
+  #       - PolicyName: ECSUpdateService
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - ecs:UpdateService
+  #               Resource: !Ref ECSService
 
-  StopStartFunctionInvokePermissionForStop:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref StopStartServiceFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt StopServiceScheduledRule.Arn
+  # StopStartFunctionInvokePermissionForStop:
+  #   Type: AWS::Lambda::Permission
+  #   Properties:
+  #     Action: lambda:InvokeFunction
+  #     FunctionName: !Ref StopStartServiceFunction
+  #     Principal: events.amazonaws.com
+  #     SourceArn: !GetAtt StopServiceScheduledRule.Arn
 
-  StopStartFunctionInvokePermissionForStart:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref StopStartServiceFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt StartServiceScheduledRule.Arn
+  # StopStartFunctionInvokePermissionForStart:
+  #   Type: AWS::Lambda::Permission
+  #   Properties:
+  #     Action: lambda:InvokeFunction
+  #     FunctionName: !Ref StopStartServiceFunction
+  #     Principal: events.amazonaws.com
+  #     SourceArn: !GetAtt StartServiceScheduledRule.Arn
 
   CreateCloudfrontInvalidationFunction:
     Type: "AWS::Lambda::Function"
@@ -784,55 +788,55 @@ Resources:
                     - !Ref UICloudfrontDistribution
 
   ################################### EVENT Bridge
-  ScheduledRuleRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: LambdaInvokePolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource: !GetAtt StopStartServiceFunction.Arn
+  # ScheduledRuleRole:
+  #   Type: "AWS::IAM::Role"
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: events.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     Policies:
+  #       - PolicyName: LambdaInvokePolicy
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - lambda:InvokeFunction
+  #               Resource: !GetAtt StopStartServiceFunction.Arn
 
-  StopServiceScheduledRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: "Shut down service everyday at 7pm"
-      RoleArn: !GetAtt ScheduledRuleRole.Arn
-      ScheduleExpression: "cron(0 19 * * ? *)"
-      State: "ENABLED"
-      Targets:
-        - Arn:
-            Fn::GetAtt:
-              - "StopStartServiceFunction"
-              - "Arn"
-          Id: stopServiceFn
-          Input: '{"start": false}'
+  # StopServiceScheduledRule:
+  #   Type: AWS::Events::Rule
+  #   Properties:
+  #     Description: "Shut down service everyday at 7pm"
+  #     RoleArn: !GetAtt ScheduledRuleRole.Arn
+  #     ScheduleExpression: "cron(0 19 * * ? *)"
+  #     State: "ENABLED"
+  #     Targets:
+  #       - Arn:
+  #           Fn::GetAtt:
+  #             - "StopStartServiceFunction"
+  #             - "Arn"
+  #         Id: stopServiceFn
+  #         Input: '{"start": false}'
 
-  StartServiceScheduledRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: "Start service everyday at 8am"
-      RoleArn: !GetAtt ScheduledRuleRole.Arn
-      ScheduleExpression: "cron(0 8 * * ? *)"
-      State: "ENABLED"
-      Targets:
-        - Arn:
-            Fn::GetAtt:
-              - "StopStartServiceFunction"
-              - "Arn"
-          Id: stopServiceFn
-          Input: '{"start": true}'
+  # StartServiceScheduledRule:
+  #   Type: AWS::Events::Rule
+  #   Properties:
+  #     Description: "Start service everyday at 8am"
+  #     RoleArn: !GetAtt ScheduledRuleRole.Arn
+  #     ScheduleExpression: "cron(0 8 * * ? *)"
+  #     State: "ENABLED"
+  #     Targets:
+  #       - Arn:
+  #           Fn::GetAtt:
+  #             - "StopStartServiceFunction"
+  #             - "Arn"
+  #         Id: stopServiceFn
+  #         Input: '{"start": true}'
 
   ###################### DNS NAMESPACE & DISCOVERY
   PrivateDNSNamespace:
@@ -853,7 +857,7 @@ Resources:
         FailureThreshold: 1
       Name: !Sub cloud.atlas.${Environment}
 
-  ############ CLOUDWATCH
+    # ######### CLOUDWATCH
   ApplicationLogGroup:
     Type: "AWS::Logs::LogGroup"
     Properties:
@@ -861,12 +865,6 @@ Resources:
       RetentionInDays: 14
 
   ###### HTTP API
-  HttpApi:
-    Type: AWS::ApiGatewayV2::Api
-    Properties:
-      Name: cloud-atlas-api
-      ProtocolType: HTTP
-
   HttpApiVPCLink:
     Type: AWS::ApiGatewayV2::VpcLink
     Properties:
@@ -878,6 +876,12 @@ Resources:
         - !Ref PublicSubnetTwo
       Tags:
         Name: !Sub cloud-atlas-${Environment}-vpc-link
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub cloud-atlas-${Environment}-api
+      ProtocolType: HTTP
 
   HttpApiRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -901,11 +905,11 @@ Resources:
         "overwrite:header.customauthheader": "$request.header.customauthheader"
         "overwrite:path": "$request.path"
 
-  HttpApiTestStage:
+  HttpApiProductionStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
       ApiId: !Ref HttpApi
-      StageName: test
+      StageName: production
       AutoDeploy: true
 
   # ####### ECS
@@ -916,8 +920,8 @@ Resources:
       RuntimePlatform:
         CpuArchitecture: X86_64
         OperatingSystemFamily: LINUX
-      Cpu: "1024"
-      Memory: "2048"
+      Cpu: "512"
+      Memory: "1024"
       NetworkMode: "awsvpc"
       RequiresCompatibilities:
         - "FARGATE"
@@ -961,7 +965,7 @@ Resources:
             - Name: IMAGES_TABLE_NAME
               Value: !Sub "cloud-atlas-${Environment}-images"
             - Name: LOG_LEVEL
-              Value: info
+              Value: error
             - Name: MARKERS_TABLE_NAME
               Value: !Sub "cloud-atlas-${Environment}-markers"
             - Name: OPTIMIZED_BUCKET_NAME
@@ -989,7 +993,7 @@ Resources:
             - Name: QUEUE_MAX_NUM_MESSAGES
               Value: 10
             - Name: QUEUE_POLLING_INTERVAL
-              Value: 3600
+              Value: 2000
             - Name: QUEUE_URL
               Value: !Ref OptimizedImagesQueue
             - Name: QUEUE_WAIT_TIME_SECONDS
@@ -1010,8 +1014,7 @@ Resources:
     Properties:
       ClusterName: !Sub "cloud-atlas-${Environment}"
       CapacityProviders:
-        # - FARGATE
-        - FARGATE_SPOT
+        - FARGATE
 
   ECSService:
     Type: "AWS::ECS::Service"
@@ -1106,12 +1109,6 @@ Resources:
                 Resource:
                   - !Ref CloudfrontPrivateKey
   ######################### Parameters Store
-  # EnvironmentNameParameter:
-  #   Type: AWS::SSM::Parameter
-  #   Properties:
-  #     Name: !Sub cloud-atlas-${Environment}-environment-name-parameter
-  #     Type: String
-  #     Value: !Sub ${Environment}
   AppNameParameter:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1153,7 +1150,7 @@ Resources:
       Value: !Join
         - ""
         - - "https://"
-          - !GetAtt UICloudfrontDistribution.DomainName
+          - cloud-atlas.net
           - "/redirect"
   PostLogoutRedirectUriParameter:
     Type: AWS::SSM::Parameter
@@ -1163,8 +1160,7 @@ Resources:
       Value: !Join
         - ""
         - - "https://"
-          - !GetAtt UICloudfrontDistribution.DomainName
-          - "/redirect"
+          - cloud-atlas.net
   ClientIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1194,25 +1190,25 @@ Resources:
     Properties:
       Name: !Sub cloud-atlas-${Environment}-max-image-file-size-in-bytes-parameter
       Type: String
-      Value: 15728640
+      Value: 20971520
   GoogleMapIdParameter:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub cloud-atlas-${Environment}-google-map-id-parameter
       Type: String
-      Value: 6b0e9677f8a58360
+      Value: 2e0e0834e13a88b3
   GoogleMapsApiKeyParameter:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub cloud-atlas-${Environment}-google-maps-api-key-parameter
       Type: String
-      Value: AIzaSyCymGXjavlTc6D5maGwEqUXZKYCO6kiGxw
+      Value: AIzaSyCMgmEuJJOQ2KE0ze1XdBqF1Xv4mxplupA
   IdTokenExpirationInMilisecondsParameter:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub cloud-atlas-${Environment}-id-token-expiration-in-miliseconds-parameter
       Type: String
-      Value: 86400000
+      Value: 3540000
   LogoutUriParameter:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1221,7 +1217,7 @@ Resources:
       Value: !Join
         - ""
         - - "https://"
-          - !GetAtt UICloudfrontDistribution.DomainName
+          - cloud-atlas.net
   MapsLimitParameter:
     Type: AWS::SSM::Parameter
     Properties:
@@ -1233,14 +1229,15 @@ Resources:
     Properties:
       Name: !Sub cloud-atlas-${Environment}-markers-limit-parameter
       Type: String
-      Value: 25
+      Value: 100
   ImagesLimitParameter:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub cloud-atlas-${Environment}-images-limit-parameter
       Type: String
       Value: 25
-  ############################# UI Build
+
+  #####################UI Build
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
     Properties:
