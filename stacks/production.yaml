@@ -1235,7 +1235,7 @@ Resources:
     Properties:
       Name: !Sub cloud-atlas-${Environment}-images-limit-parameter
       Type: String
-      Value: 25
+      Value: 50
 
   #####################UI Build
   CodeBuildServiceRole:
