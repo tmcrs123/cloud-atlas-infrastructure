@@ -1196,13 +1196,13 @@ Resources:
     Properties:
       Name: !Sub cloud-atlas-${Environment}-google-map-id-parameter
       Type: String
-      Value: changeme
+      Value: changemee
   GoogleMapsApiKeyParameter:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub cloud-atlas-${Environment}-google-maps-api-key-parameter
       Type: String
-      Value: changeme
+      Value: changemee
   IdTokenExpirationInMilisecondsParameter:
     Type: AWS::SSM::Parameter
     Properties:
